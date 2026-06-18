@@ -106,49 +106,38 @@ async def get_session() -> AsyncIterator[AsyncSession]:
 async def ping_database() -> dict[str, Any]:
     """Run a trivial query and return a health summary.
 
-    Never includes connection strings, credentials, or stack traces in
-    the return value. The failure path returns a fixed-label payload
-    (no exception value, no DSN) and emits a single structured log
-    line after the try/except so CodeQL's clear-text-logging flow
-    analysis has no path from ``except ... as exc:`` to a logger.
+    Never includes connection strings, credentials, or stack traces
+    in the return value. The exception object itself is never
+    referenced outside the except block; the failure record is a
+    fixed ``"unhealthy"`` status with a numeric latency.
     """
     engine = get_engine()
     started = time.perf_counter()
-    failure: tuple[str, float] | None = None
+    success = True
     try:
         async with engine.connect() as connection:
             await connection.exec_driver_sql("SELECT 1")
     except SQLAlchemyError:
-        failure = ("SQLAlchemyError", _elapsed_ms(started))
+        success = False
     except Exception:  # pragma: no cover - defensive
-        failure = ("Exception", _elapsed_ms(started))
+        success = False
 
-    if failure is not None:
-        label, latency_ms = failure
-        # codeql[py/clear-text-logging]: the only values logged are a
-        # fixed class-name literal ("SQLAlchemyError" / "Exception")
-        # and a numeric latency; nothing in this scope is sourced
-        # from the exception object or the database connection
-        # state, so no credential, DSN, or stack trace can reach
-        # the log record. The redaction pass in
-        # ``app.core.logging.build_log_event`` is the second line
-        # of defence.
+    latency_ms = _elapsed_ms(started)
+    if not success:
         logger.warning(
             build_log_event(
                 "database_ping_failed",
-                error_type=label,
                 latency_ms=latency_ms,
             )
         )
         return {
             "status": "unhealthy",
             "latency_ms": latency_ms,
-            "error_type": label,
         }
 
     return {
         "status": "healthy",
-        "latency_ms": _elapsed_ms(started),
+        "latency_ms": latency_ms,
     }
 
 
