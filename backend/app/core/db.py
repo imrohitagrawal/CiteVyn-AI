@@ -125,6 +125,14 @@ async def ping_database() -> dict[str, Any]:
 
     if failure is not None:
         label, latency_ms = failure
+        # codeql[py/clear-text-logging]: the only values logged are a
+        # fixed class-name literal ("SQLAlchemyError" / "Exception")
+        # and a numeric latency; nothing in this scope is sourced
+        # from the exception object or the database connection
+        # state, so no credential, DSN, or stack trace can reach
+        # the log record. The redaction pass in
+        # ``app.core.logging.build_log_event`` is the second line
+        # of defence.
         logger.warning(
             build_log_event(
                 "database_ping_failed",
