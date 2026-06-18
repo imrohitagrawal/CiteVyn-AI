@@ -40,12 +40,14 @@ async def health_dependencies(request: Request, response: Response) -> dict[str,
     healthy = postgres.get("status") == "healthy"
     if not healthy:
         response.status_code = 503
-        logger.warning(
-            build_log_event(
-                "database_ping_failed",
-                latency_ms=postgres.get("latency_ms"),
-            )
-        )
+        # Log a fixed event with no value sourced from the ping
+        # result. The latency is intentionally omitted from this
+        # log line: CodeQL's clear-text-logging flow analysis
+        # treats any value that originated inside a SQLAlchemy
+        # except block (even a numeric latency) as a taint
+        # source. The latency is still returned to the client
+        # in the response body where it belongs.
+        logger.warning(build_log_event("database_ping_failed"))
     return {
         "request_id": _request_id(request),
         "status": "healthy" if healthy else "degraded",
