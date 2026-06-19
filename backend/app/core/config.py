@@ -107,6 +107,14 @@ class Settings(BaseSettings):
     # "golden pass rate >= 95%" gate.
     index_promotion_min_pass_rate: float = Field(default=0.95, ge=0.0, le=1.0)
 
+    # --- Worker source snapshot (Slice 8 step 6) ---
+    # The ``source_version_hash`` is stamped on every
+    # :class:`IngestionJob` and :class:`IndexVersion` row this
+    # worker produces. The MVP default is a placeholder —
+    # production replaces it with the SHA-256 of the source
+    # feed the operator ingested.
+    source_version_hash: str = "sha256:mvp-snapshot-1"
+
     # --- Response copy (Slice 4+) ---
     unsupported_refusal: str = DEFAULT_UNSUPPORTED_REFUSAL
     no_answer_fallback: str = DEFAULT_NO_ANSWER_FALLBACK
