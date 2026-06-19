@@ -42,12 +42,9 @@ async def health_dependencies(request: Request, response: Response) -> dict[str,
     healthy = postgres.get("status") == "healthy"
     if not healthy:
         response.status_code = 503
-        # codeql[py/clear-text-logging-sensitive-data]: the only
-        # value passed to logger.warning is the literal event name
-        # string "database_ping_failed"; no value sourced from the
-        # SQLAlchemy except block in ping_database can reach the
-        # log record.
-        logger.warning(build_log_event("database_ping_failed"))
+        logger.warning(  # codeql[py/clear-text-logging-sensitive-data]
+            build_log_event("database_ping_failed"),
+        )
     return {
         "request_id": _request_id(request),
         "status": "healthy" if healthy else "degraded",
