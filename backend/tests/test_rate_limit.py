@@ -11,7 +11,6 @@ import pytest
 
 from app.core.errors import APIErrorCode
 from app.core.rate_limit import (
-    DEFAULT_LIMIT_ADMIN,
     DEFAULT_LIMIT_DEMO_USER,
     RateLimiter,
 )

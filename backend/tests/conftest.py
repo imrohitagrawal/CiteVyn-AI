@@ -28,6 +28,8 @@ from app.models import (
     Document,
     DocumentStatus,
     ExactTerm,
+    IndexStatus,
+    IndexVersion,
     TermType,
 )
 
@@ -134,6 +136,22 @@ async def seed_catalog(
     docs: list[Document] = []
     chunks: list[Chunk] = []
     exact_terms: list[ExactTerm] = []
+
+    # Seed the active IndexVersion row so the active-sentinel
+    # path in services/exact_lookup.py and /health/index can
+    # resolve. The chunk-row join links on
+    # ``Document.index_version == IndexVersion.index_version``,
+    # so the same string has to exist in both tables.
+    active_index = IndexVersion(
+        index_version=index_version,
+        status=IndexStatus.active,
+        source_version_hash=f"sha256:{index_version}",
+        created_at=now,
+        promoted_at=now,
+    )
+    session.add(active_index)
+    await session.flush()
+
     for spec in doc_specs:
         doc = Document(
             document_id=uuid.uuid4(),

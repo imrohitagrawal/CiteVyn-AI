@@ -48,14 +48,3 @@ async def health_dependencies(request: Request, response: Response) -> dict[str,
         "status": "healthy" if healthy else "degraded",
         "dependencies": {"postgres": postgres},
     }
-
-
-@router.get("/health/index")
-def health_index(request: Request) -> dict[str, Any]:
-    return {
-        "request_id": _request_id(request),
-        "status": "pre_index",
-        "active_index": None,
-        "previous_good_index": None,
-        "message": "No active index exists before Slice 2 persistence and indexing.",
-    }
