@@ -98,7 +98,14 @@ jobs:
         # 0002 promote StrEnum to native PG ENUM, 0003 add
         # chunks.embedding) against a real Postgres engine. Any
         # SQLAlchemy-vs-schema drift fails here.
-        run: uv run alembic -c db/alembic.ini upgrade head
+        #
+        # Run from ``backend/`` because that is where
+        # ``uv sync`` created the venv (and installed
+        # ``alembic``). The ``-c ../db/alembic.ini`` path
+        # resolves against the step's CWD, so it points at
+        # the repo-root ``db/`` tree from the ``backend/`` dir.
+        working-directory: backend
+        run: uv run alembic -c ../db/alembic.ini upgrade head
       - name: Postgres integration tests
         working-directory: backend
         # The ``postgres`` marker is opt-in and gated by
