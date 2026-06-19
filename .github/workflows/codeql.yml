@@ -50,6 +50,7 @@ jobs:
           languages: ${{ matrix.language }}
           queries: ${{ matrix.queries }}
           paths: ${{ matrix.paths }}
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3

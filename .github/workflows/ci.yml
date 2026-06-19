@@ -1,0 +1,97 @@
+# CI for CiteVyn AI. The default `test` job runs the hermetic
+# in-memory SQLite suite plus the static checks documented in
+# backend/README.md.
+#
+# A second `postgres-migrations` job is provided as a commented-out
+# stub. It runs `alembic upgrade head` against a real Postgres
+# service to catch things SQLite forgives, then runs the `postgres`
+# pytest marker. It is intentionally not enabled in Slice 2 / Slice
+# 3+; enable it once the Postgres integration test marker is wired
+# up and the `0002_promote_strenum_to_native` migration is
+# exercised in CI.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: pytest + lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install --upgrade pip uv
+      - name: Sync dependencies
+        run: uv sync --group dev
+      - name: Ruff
+        run: uv run ruff check .
+      - name: Pyright
+        run: uv run pyright
+      - name: Pytest (SQLite, no postgres marker)
+        # Default run skips the `postgres` integration tests because
+        # CITEVYN_PG_TEST_URL is unset. The `postgres` marker is
+        # opt-in and gated by an env var, so this is hermetic.
+        run: uv run pytest -m "not postgres" -v
+
+  # ---------------------------------------------------------------------------
+  # Slice 3+ — enable this job once the Postgres integration test marker
+  # (Follow-up A) is merged. To enable, remove the leading `# ` on the
+  # `postgres-migrations:` key, the two `needs:` references, and the
+  # services block. The job will:
+  #   * spin up a real Postgres service
+  #   * set CITEVYN_PG_TEST_URL to point at it
+  #   * run `alembic upgrade head` (exercises 0001 + 0002)
+  #   * run the `postgres`-marked integration tests
+  # ---------------------------------------------------------------------------
+  # postgres-migrations:
+  #   name: alembic upgrade head on real Postgres
+  #   runs-on: ubuntu-latest
+  #   needs: test
+  #   services:
+  #     postgres:
+  #       image: postgres:16
+  #       env:
+  #         POSTGRES_USER: citevyn
+  #         POSTGRES_PASSWORD: citevyn
+  #         POSTGRES_DB: citevyn_pg_test
+  #       ports:
+  #         - 5432:5432
+  #       options: >-
+  #         --health-cmd "pg_isready -U citevyn"
+  #         --health-interval 5s
+  #         --health-timeout 5s
+  #         --health-retries 10
+  #   env:
+  #     CITEVYN_PG_TEST_URL: postgresql+psycopg://citevyn:citevyn@localhost:5432/citevyn_pg_test
+  #   defaults:
+  #     run:
+  #       # ``alembic.ini`` declares ``script_location = db`` relative
+  #       # to CWD; running from the repo root matches the
+  #       # ``backend/README.md`` convention. The pytest step still
+  #       # uses ``backend`` because pyproject.toml and the venv live
+  #       # there.
+  #       working-directory: .
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-python@v5
+  #       with:
+  #         python-version: "3.12"
+  #     - run: pip install --upgrade pip uv
+  #     - name: Sync dependencies
+  #       run: uv sync --group dev
+  #     - name: Alembic upgrade head against Postgres
+  #       run: uv run alembic -c db/alembic.ini upgrade head
+  #     - name: Postgres integration tests
+  #       working-directory: backend
+  #       run: uv run pytest -m postgres -v

@@ -1,0 +1,52 @@
+# Local development infrastructure for CiteVyn AI.
+#
+# Brings up Postgres (with the pgvector extension) and Redis. The
+# backend reads the connection string from CITEVYN_DATABASE_URL; the
+# default value in .env.example points at the service defined below.
+#
+# Usage:
+#   docker compose -f infra/docker/docker-compose.yml up -d db
+#   docker compose -f infra/docker/docker-compose.yml down
+#
+# This file is intentionally local-only. It is NOT used in CI — tests
+# run against an in-memory SQLite engine.
+#
+# Redis note (MVP): the ``redis`` service is provisioned for forward
+# compatibility with the Slice 8+ distributed answer-cache layer
+# (see docs/ARCHITECTURE.md §5). The MVP does not connect to it; the
+# default ``make demo`` target only requires the ``db`` service to be
+# up. You may remove the ``redis`` block once the cache layer lands,
+# but keeping it now lets reviewers exercise the full compose stack
+# without having to re-add the service later.
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: citevyn-db
+    environment:
+      POSTGRES_DB: citevyn
+      POSTGRES_USER: citevyn
+      POSTGRES_PASSWORD: citevyn
+    ports:
+      - "5432:5432"
+    volumes:
+      - citevyn_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U citevyn -d citevyn"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: citevyn-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  citevyn_pgdata:

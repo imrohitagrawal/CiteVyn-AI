@@ -17,9 +17,12 @@ def test_dependencies_report_no_external_dependencies(client: TestClient) -> Non
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "healthy"
-    assert body["dependencies"] == {}
+    # The default test settings point at a working SQLite URL, so the
+    # postgres dependency reports a healthy ping. (Post-Slice 2 the
+    # route delegates to ``app.core.db.ping_database``.)
+    assert body["dependencies"]["postgres"]["status"] == "healthy"
+    assert "latency_ms" in body["dependencies"]["postgres"]
     assert body["request_id"].startswith("req_")
-    assert "Slice 1" in body["message"]
 
 
 def test_index_reports_pre_index_status(client: TestClient) -> None:

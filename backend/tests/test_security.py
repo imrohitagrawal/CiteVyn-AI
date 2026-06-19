@@ -20,7 +20,11 @@ def test_missing_bearer_token_is_rejected() -> None:
     response = TestClient(_protected_app()).get("/protected")
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Missing bearer token."
+    # The 401 body carries the standard envelope (per the Slice 7
+    # contract), not a bare string in ``detail``.
+    body = response.json()
+    assert body["detail"]["error"]["code"] == "auth_required"
+    assert "Missing bearer token" in body["detail"]["error"]["message"]
 
 
 def test_invalid_bearer_token_is_rejected() -> None:
@@ -30,7 +34,9 @@ def test_invalid_bearer_token_is_rejected() -> None:
     )
 
     assert response.status_code == 401
-    assert response.json()["detail"] == "Invalid bearer token."
+    body = response.json()
+    assert body["detail"]["error"]["code"] == "auth_required"
+    assert "Invalid bearer token" in body["detail"]["error"]["message"]
 
 
 def test_valid_bearer_token_is_accepted() -> None:
