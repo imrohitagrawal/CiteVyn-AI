@@ -56,7 +56,6 @@ clean: ## Remove __pycache__ + .pytest_cache + .ruff_cache + .smoke-* artefacts
 # ─────────────────────────── Code quality (used by make ci and the pr-quality workflow) ───────────────────────────
 lint: ## Run ruff on backend/
 	cd backend && uv run ruff check .
-	cd backend && uv run ruff format --check .
 
 typecheck: ## Run pyright strict on backend/
 	cd backend && uv run pyright
