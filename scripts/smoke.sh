@@ -83,6 +83,14 @@ require_cmd uv
 
 cd "$REPO_ROOT"
 
+# Compose now requires POSTGRES_PASSWORD (the prod stack refuses
+# to boot with an empty one). Smoke is a local one-shot, so we
+# fall back to the same default the README documents — the
+# docker-compose ``db`` service still accepts the plain-text
+# credential on its private docker network.
+export POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-citevyn}"
+export CITEVYN_ADMIN_API_KEY="${CITEVYN_ADMIN_API_KEY:-smoke-admin-key}"
+
 log "Bringing up Postgres (container: $DB_CONTAINER)…"
 docker compose -f "$COMPOSE_FILE" up -d db >/dev/null
 wait_for_db

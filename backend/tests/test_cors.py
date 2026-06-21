@@ -59,9 +59,7 @@ def test_preflight_from_allowed_origin_returns_cors_headers(settings: Settings) 
     assert response.headers["access-control-allow-origin"] == "https://allowed.example.com"
     # The ``allow_credentials=False`` setting must not emit a
     # ``Access-Control-Allow-Credentials: true`` header.
-    assert "access-control-allow-credentials" not in {
-        k.lower() for k in response.headers
-    }
+    assert "access-control-allow-credentials" not in {k.lower() for k in response.headers}
 
 
 def test_get_from_allowed_origin_has_cors_header(settings: Settings) -> None:

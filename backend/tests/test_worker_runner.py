@@ -62,9 +62,7 @@ async def _ingestion_job_count(session: AsyncSession) -> int:
 
 
 @pytest.mark.asyncio
-async def test_run_completes_full_pipeline(
-    session: AsyncSession, runner: IngestionRunner
-) -> None:
+async def test_run_completes_full_pipeline(session: AsyncSession, runner: IngestionRunner) -> None:
     """A complete run produces a Document, Chunks, and ExactTerm rows."""
     result = await runner.run(session, source=get_source("claude_api"))
     assert result.status is JobStatus.completed
@@ -73,17 +71,19 @@ async def test_run_completes_full_pipeline(
 
     # Verify the rows landed.
     docs = (
-        await session.execute(
-            select(Document).where(Document.source_name == "claude_api")
-        )
-    ).scalars().all()
+        (await session.execute(select(Document).where(Document.source_name == "claude_api")))
+        .scalars()
+        .all()
+    )
     assert len(docs) == 1
     assert docs[0].status is DocumentStatus.active
     assert docs[0].index_version == "v-test"
 
     chunks = (
-        await session.execute(select(Chunk).where(Chunk.document_id == docs[0].document_id))
-    ).scalars().all()
+        (await session.execute(select(Chunk).where(Chunk.document_id == docs[0].document_id)))
+        .scalars()
+        .all()
+    )
     assert len(chunks) == result.chunk_count
     # Each chunk has an embedding of the right shape.
     for chunk in chunks:
@@ -93,9 +93,7 @@ async def test_run_completes_full_pipeline(
 
 
 @pytest.mark.asyncio
-async def test_run_writes_ingestion_job_row(
-    session: AsyncSession, runner: IngestionRunner
-) -> None:
+async def test_run_writes_ingestion_job_row(session: AsyncSession, runner: IngestionRunner) -> None:
     """A single :class:`IngestionJob` row is written for the run."""
     assert await _ingestion_job_count(session) == 0
     await runner.run(session, source=get_source("codex"))
@@ -110,9 +108,7 @@ async def test_run_writes_ingestion_job_row(
 
 
 @pytest.mark.asyncio
-async def test_run_advances_stages_in_order(
-    session: AsyncSession, runner: IngestionRunner
-) -> None:
+async def test_run_advances_stages_in_order(session: AsyncSession, runner: IngestionRunner) -> None:
     """The job's final stage is ``indexing`` (the last stage of the pipeline)."""
     await runner.run(session, source=get_source("claude_code"))
     job = (await session.execute(select(IngestionJob))).scalars().one()
@@ -120,16 +116,14 @@ async def test_run_advances_stages_in_order(
 
 
 @pytest.mark.asyncio
-async def test_run_extracts_exact_terms(
-    session: AsyncSession, runner: IngestionRunner
-) -> None:
+async def test_run_extracts_exact_terms(session: AsyncSession, runner: IngestionRunner) -> None:
     """The Claude API fixture's flags and env vars surface as :class:`ExactTerm` rows."""
     await runner.run(session, source=get_source("claude_api"))
     terms = (
-        await session.execute(
-            select(ExactTerm).where(ExactTerm.product_area == "claude_api")
-        )
-    ).scalars().all()
+        (await session.execute(select(ExactTerm).where(ExactTerm.product_area == "claude_api")))
+        .scalars()
+        .all()
+    )
     texts = {t.term_text for t in terms}
     # Flags from the fixture.
     assert "--model" in texts
@@ -156,10 +150,10 @@ async def test_run_is_idempotent_on_existing_document(
     assert second.chunk_count == first.chunk_count
 
     docs = (
-        await session.execute(
-            select(Document).where(Document.source_name == "gemini_api")
-        )
-    ).scalars().all()
+        (await session.execute(select(Document).where(Document.source_name == "gemini_api")))
+        .scalars()
+        .all()
+    )
     assert len(docs) == 1
 
 

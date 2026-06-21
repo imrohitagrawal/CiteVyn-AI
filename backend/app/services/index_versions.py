@@ -76,9 +76,7 @@ async def count_documents_for_version(
     """
     from app.models.documents import Document
 
-    stmt = select(func.count()).select_from(Document).where(
-        Document.index_version == index_version
-    )
+    stmt = select(func.count()).select_from(Document).where(Document.index_version == index_version)
     result = await session.execute(stmt)
     return int(result.scalar_one())
 
@@ -132,9 +130,7 @@ async def promote_version(
     # ``active`` status is logically a singleton.
     current_active = (
         await session.execute(
-            select(IndexVersion)
-            .where(IndexVersion.status == IndexStatus.active)
-            .with_for_update()
+            select(IndexVersion).where(IndexVersion.status == IndexStatus.active).with_for_update()
         )
     ).scalar_one_or_none()
     if current_active is not None and current_active.index_version != target.index_version:

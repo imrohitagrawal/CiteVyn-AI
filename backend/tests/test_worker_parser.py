@@ -17,13 +17,7 @@ def test_parse_extracts_title_from_h1() -> None:
 
 
 def test_parse_extracts_blocks_from_h2() -> None:
-    raw = (
-        "# Title\n"
-        "## Section A\n"
-        "first body\n"
-        "## Section B\n"
-        "second body\n"
-    )
+    raw = "# Title\n## Section A\nfirst body\n## Section B\nsecond body\n"
     parsed = parse_markdown(raw)
     assert len(parsed.blocks) == 2
     assert parsed.blocks[0].heading == "Section A"
@@ -33,13 +27,7 @@ def test_parse_extracts_blocks_from_h2() -> None:
 
 
 def test_parse_joins_multiline_body() -> None:
-    raw = (
-        "# T\n"
-        "## H\n"
-        "line one\n"
-        "line two\n"
-        "line three\n"
-    )
+    raw = "# T\n## H\nline one\nline two\nline three\n"
     parsed = parse_markdown(raw)
     assert parsed.blocks[0].text == "line one line two line three"
 

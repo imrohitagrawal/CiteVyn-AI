@@ -35,7 +35,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.db import get_session
 from app.core.errors import APIErrorCode, error_response
 from app.core.middleware import get_current_request_id
-from app.core.security import ADMIN_USER_ID, require_admin_api_key
+from app.core.rate_limit import rate_limited_admin
+from app.core.security import ADMIN_USER_ID
 from app.models.enums import IndexStatus, JobStatus
 from app.services import evaluations as evaluation_service
 from app.services import index_versions as index_version_service
@@ -171,7 +172,7 @@ def _http_404(message: str, *, request_id: str) -> HTTPException:
 )
 async def list_index_versions(
     request: Request,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     status_filter: IndexStatus | None = Query(default=None, alias="status"),  # noqa: B008
 ) -> IndexVersionListResponse:
@@ -192,7 +193,7 @@ async def list_index_versions(
 async def get_index_version(
     request: Request,
     index_version: str,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> IndexVersionDetailResponse:
     """Return a single index version and its document count."""
@@ -217,7 +218,7 @@ async def get_index_version(
 async def promote_index_version(
     request: Request,
     index_version: str,
-    admin_user_id: Annotated[str, Depends(require_admin_api_key)],
+    admin_user_id: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> PromoteIndexResponse:
     """Promote ``index_version`` to :data:`IndexStatus.active`.
@@ -281,22 +282,19 @@ async def promote_index_version(
 )
 async def list_evaluations(
     request: Request,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     index_version: str | None = Query(default=None, max_length=64),  # noqa: B008
     limit: int = Query(default=50, ge=1, le=200),  # noqa: B008
 ) -> EvaluationRunListResponse:
     """Return the most recent evaluation runs, newest first."""
     request_id = _request_id(request)
-    runs = await evaluation_service.list_runs(
-        db, index_version=index_version, limit=limit
-    )
+    runs = await evaluation_service.list_runs(db, index_version=index_version, limit=limit)
     return EvaluationRunListResponse(
         request_id=request_id,
         total=len(runs),
         runs=[
-            EvaluationRunSummary.model_validate(evaluation_service.summarize_run(r))
-            for r in runs
+            EvaluationRunSummary.model_validate(evaluation_service.summarize_run(r)) for r in runs
         ],
     )
 
@@ -308,7 +306,7 @@ async def list_evaluations(
 async def get_evaluation(
     request: Request,
     run_id: uuid.UUID,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EvaluationRunDetailResponse:
     """Return a single evaluation run (full metrics + failure summary)."""
@@ -333,7 +331,7 @@ async def get_evaluation(
 )
 async def list_ingestion_jobs(
     request: Request,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
     status_filter: JobStatus | None = Query(default=None, alias="status"),  # noqa: B008
     source_name: str | None = Query(default=None, max_length=64),  # noqa: B008
@@ -361,7 +359,7 @@ async def list_ingestion_jobs(
 async def get_ingestion_job(
     request: Request,
     job_id: uuid.UUID,
-    _: Annotated[str, Depends(require_admin_api_key)],
+    _: Annotated[str, Depends(rate_limited_admin)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> IngestionJobDetailResponse:
     """Return a single ingestion job."""

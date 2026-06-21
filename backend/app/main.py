@@ -3,11 +3,22 @@
 Wires the request-id middleware, the public + admin routers, and the
 uniform error envelope. Every 4xx/5xx response flows through
 :mod:`app.core.errors` so the client can parse errors with one shape.
+
+Slice 9a adds a :class:`lifespan` context manager that:
+
+* runs :func:`app.llm.factory.validate_llm_provider` at startup so a
+  misconfigured production deploy (``CITEVYN_ENVIRONMENT=production``
+  + ``CITEVYN_LLM_PROVIDER=stub``) fails at boot, not on first ask;
+* closes the shared :class:`LLMClient` on shutdown so the underlying
+  ``httpx.AsyncClient`` connection pool is released cleanly (the
+  Slice 8 review finding: per-request construction leaked sockets).
 """
 
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -30,6 +41,36 @@ from app.core.errors import (
 )
 from app.core.logging import configure_logging
 from app.core.middleware import RequestIDMiddleware, get_current_request_id
+from app.core.redis_client import shutdown_redis_client
+from app.llm.factory import shutdown_llm_client, validate_llm_provider
+
+_logger = logging.getLogger("citevyn.request")
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI) -> AsyncGenerator[None]:
+    """Boot/shutdown hooks for the shared :class:`LLMClient` and prod guard.
+
+    The prod guard raises eagerly so a deploy that ships with the
+    default stub provider cannot accept traffic. The shutdown hook is
+    best-effort: a failure to close the underlying httpx client is
+    logged but never raised (we still want the process to exit).
+    """
+    settings = get_settings()
+    validate_llm_provider(settings)
+    _logger.info(
+        "app_startup",
+        extra={
+            "environment": settings.environment,
+            "llm_provider": settings.llm_provider,
+        },
+    )
+    try:
+        yield
+    finally:
+        _logger.info("app_shutdown")
+        await shutdown_llm_client()
+        await shutdown_redis_client()
 
 
 def create_app() -> FastAPI:
@@ -38,12 +79,16 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title="CiteVyn AI Backend",
-        version="0.8.0",
+        version="0.9.0",
         description=(
-            "Slice 8 backend: HTTP routes for sessions, messages, "
+            "Slice 9 backend: HTTP routes for sessions, messages, "
             "search, health, and admin; wired to the Slice 4–6 "
-            "answer engine and the Slice 8 ingestion worker."
+            "answer engine, the Slice 8 ingestion worker, and the "
+            "Slice 9a production ops substrate (singleton LLM "
+            "client, Redis sliding-window rate limit, multi-stage "
+            "Docker image, Caddy auto-TLS reverse proxy)."
         ),
+        lifespan=_lifespan,
     )
     configure_cors(app, settings)
     app.add_middleware(RequestIDMiddleware)
@@ -116,11 +161,7 @@ async def _validation_error_handler(request: Request, exc: RequestValidationErro
     rejected" without seeing the contents.
     """
     redacted_errors: list[dict[str, Any]] = [
-        (
-            {**raw, "input": _redact_input(raw["input"])}
-            if "input" in raw
-            else dict(raw)
-        )
+        ({**raw, "input": _redact_input(raw["input"])} if "input" in raw else dict(raw))
         for raw in exc.errors()
     ]
     envelope = ErrorEnvelope(
@@ -144,7 +185,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception) -> JSON
     with the standard envelope. Without this handler FastAPI
     would emit its own ``Internal Server Error`` HTML body.
     """
-    logging.getLogger("citevyn.request").exception(
+    _logger.exception(
         "unhandled_exception",
         extra={"request_id": _resolve_request_id(request), "path": request.url.path},
     )

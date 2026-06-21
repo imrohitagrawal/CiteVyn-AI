@@ -235,13 +235,13 @@ def test_chunks_embedding_is_bytea_on_postgres(
 ) -> None:
     """Slice 8 step 4: ``chunks.embedding`` lands as ``bytea`` on Postgres.
 
-    Migration ``0003`` declares the column as ``LargeBinary``, which
-    Postgres renders as ``bytea``. The future ``pgvector`` migration
- will swap the column type to ``vector(<dim>)`` and this
-    assertion will need to be updated.
+       Migration ``0003`` declares the column as ``LargeBinary``, which
+       Postgres renders as ``bytea``. The future ``pgvector`` migration
+    will swap the column type to ``vector(<dim>)`` and this
+       assertion will need to be updated.
 
-    The test also confirms the column is nullable so existing rows
-    survive the upgrade.
+       The test also confirms the column is nullable so existing rows
+       survive the upgrade.
     """
     alembic_pg_config.set_main_option("sqlalchemy.url", _pg_url_with_schema(pg_schema))
     alembic_upgrade(alembic_pg_config, "head")

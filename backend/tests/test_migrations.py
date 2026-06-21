@@ -83,9 +83,7 @@ def test_chunks_embedding_column_is_added_by_migration(
 
     engine = create_engine(alembic_config.get_main_option("sqlalchemy.url"))
     with engine.connect() as connection:
-        rows = connection.exec_driver_sql(
-            "PRAGMA table_info(chunks)"
-        ).all()
+        rows = connection.exec_driver_sql("PRAGMA table_info(chunks)").all()
     columns = {row[1]: row[2] for row in rows}
     assert "embedding" in columns, f"Expected chunks.embedding, got: {columns}"
     # SQLite reports BLOB for LargeBinary; the type is intentionally

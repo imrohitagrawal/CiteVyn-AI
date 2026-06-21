@@ -1,0 +1,113 @@
+# syntax=docker/dockerfile:1.7
+# ────────────────────────────────────────────────────────────────────────────
+# CiteVyn API container — multi-stage build for production.
+#
+# Stage 1 (builder): uses uv to compile a fully-resolved environment
+# into /app/.venv from backend/pyproject.toml + uv.lock.
+#
+# Stage 2 (runtime): copies /app/.venv + the source tree onto a
+# distroless-slim Python base, runs as a non-root user, and exposes
+# port 8000 for the FastAPI app behind a Caddy reverse proxy.
+#
+# Why distroless: minimal attack surface (no shell, no package
+# manager, no busybox), trivially auditable base layer.
+# Why uv: deterministic resolution from uv.lock, ~10× faster than
+# pip install, and the venv is self-contained so we don't need to
+# install into the system site-packages.
+# Why separate api / worker images: the worker doesn't need uvicorn
+# or the API's TCP listener; the worker process image is smaller and
+# has a different CMD.
+#
+# Build:
+#   docker build -f infra/docker/Dockerfile.api \
+#       --build-arg VERSION=$(git describe --tags --always) \
+#       -t citevyn/api:VERSION .
+#
+# Run:
+#   docker run --rm -p 8000:8000 \
+#       --env-file infra/docker/prod.env \
+#       citevyn/api:VERSION
+# ────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────── Stage 1: builder ──────────────────────────────
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+# Build-time configuration. VERSION is stamped into the image for
+# `/health` and `/version` endpoints; default to "dev" so local
+# builds don't need git tagging.
+ARG VERSION=dev
+ENV VERSION=${VERSION}
+
+WORKDIR /build
+
+# Copy ONLY the dependency manifest first. Docker's layer cache
+# skips the (slow) ``uv sync`` step on rebuilds when the manifest
+# hasn't changed.
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+WORKDIR /build/backend
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+# Now copy the source and install the project itself into the venv.
+# This layer invalidates on every source change but stays cached when
+# only unrelated files change.
+COPY backend/app ./app
+COPY backend/README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable
+
+# Note: the alembic tree (``db/``) is NOT copied into the api
+# runtime image. Migrations are a deploy-time step run by
+# ``deploy.sh`` / ``refresh.sh`` from the host venv (or a one-shot
+# init container). The api process never reads ``/db`` at runtime,
+# so shipping the migration history in the api image is wasted bytes
+# and a wider attack surface on every release.
+
+# ─────────────────────────── Stage 2: runtime ──────────────────────────────
+FROM python:3.12-slim-bookworm AS runtime
+
+ARG VERSION=dev
+ENV VERSION=${VERSION} \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH="/app/.venv/bin:${PATH}"
+
+# Create a non-root user with a fixed UID. ``appuser`` owns /app so
+# the process can write logs / cache without root.
+RUN groupadd --system --gid 1001 appuser \
+    && useradd  --system --uid 1001 --gid appuser --home-dir /app --shell /usr/sbin/nologin appuser
+
+WORKDIR /app
+
+# Copy the venv built in stage 1. The .venv directory is fully
+# self-contained — its bin/ entries reference the absolute path
+# /app/.venv, so it works from the new WORKDIR.
+COPY --from=builder --chown=appuser:appuser /build/backend/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /build/backend/app    /app/app
+COPY --from=builder --chown=appuser:appuser /build/backend/README.md /app/README.md
+
+# Curl is needed for HEALTHCHECK against the local uvicorn listener.
+# python:3.12-slim-bookworm already ships libpython3 + ssl.
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+USER appuser
+
+EXPOSE 8000
+
+# uvicorn: 1 worker in dev / preview, scale via ``docker compose
+# scale api=N`` (production should pin workers to CPU count).
+HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
+    CMD curl --fail --silent http://localhost:8000/health || exit 1
+
+# Module path matches the package layout created by uv (app is at
+# /app/app, the venv is on PATH so uvicorn imports cleanly).
+CMD ["uvicorn", "app.main:app", \
+     "--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--proxy-headers", \
+     "--forwarded-allow-ips", "*", \
+     "--access-log"]

@@ -68,15 +68,11 @@ class LocalFetcher:
     def fetch(self, source: SourceSpec) -> str:
         path = self._root / source.location
         if not path.is_file():
-            raise FetchError(
-                f"local fixture not found: {path} (source={source.name!r})"
-            )
+            raise FetchError(f"local fixture not found: {path} (source={source.name!r})")
         try:
             return path.read_text(encoding="utf-8", errors="strict")
         except UnicodeDecodeError as exc:
-            raise FetchError(
-                f"local fixture is not valid utf-8: {path} ({exc})"
-            ) from exc
+            raise FetchError(f"local fixture is not valid utf-8: {path} ({exc})") from exc
 
 
 class HttpFetcher:

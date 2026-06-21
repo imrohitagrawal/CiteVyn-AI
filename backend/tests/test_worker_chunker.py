@@ -18,9 +18,7 @@ def _spec() -> SourceSpec:
 
 
 def test_chunk_document_produces_one_draft_per_block() -> None:
-    parsed = parse_markdown(
-        "# T\n## A\nbody a\n## B\nbody b\n## C\nbody c\n"
-    )
+    parsed = parse_markdown("# T\n## A\nbody a\n## B\nbody b\n## C\nbody c\n")
     drafts = chunk_document(parsed, source=_spec())
     assert len(drafts) == 3
     assert [d.heading for d in drafts] == ["A", "B", "C"]

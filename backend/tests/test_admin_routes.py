@@ -109,9 +109,7 @@ def test_admin_routes_reject_bad_admin_key(admin_app, method, path) -> None:
 def test_list_index_versions_empty(admin_app, session) -> None:
     """No rows → empty list, ``total=0``."""
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/index_versions", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/index_versions", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 0
@@ -124,9 +122,7 @@ def test_list_index_versions_with_seed(admin_app, session) -> None:
 
     asyncio.get_event_loop().run_until_complete(seed_catalog(session))
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/index_versions", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/index_versions", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
@@ -167,9 +163,7 @@ def test_get_index_version_returns_detail(admin_app, session) -> None:
 
     asyncio.get_event_loop().run_until_complete(seed_catalog(session))
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/index_versions/v1", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/index_versions/v1", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["version"]["index_version"] == "v1"
@@ -223,9 +217,7 @@ def test_promote_index_version_demotes_current(admin_app, session) -> None:
 
     # Current state: v1 is previous_good, v2 is active.
     with TestClient(admin_app) as client:
-        list_response = client.get(
-            "/v1/admin/index_versions", headers=_admin_headers()
-        )
+        list_response = client.get("/v1/admin/index_versions", headers=_admin_headers())
     rows = {r["index_version"]: r["status"] for r in list_response.json()["versions"]}
     assert rows["v1"] == "previous_good"
     assert rows["v2"] == "active"
@@ -284,12 +276,16 @@ def test_promote_index_version_writes_audit_event(admin_app, session) -> None:
     assert response.status_code == 200
 
     rows = (
-        asyncio.get_event_loop().run_until_complete(
-            session.execute(
-                select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+        (
+            asyncio.get_event_loop().run_until_complete(
+                session.execute(
+                    select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     assert rows[0].resource_id == "v3"
 
@@ -302,9 +298,7 @@ def test_promote_index_version_writes_audit_event(admin_app, session) -> None:
 def test_list_evaluations_empty(admin_app) -> None:
     """No runs → empty list, ``total=0``."""
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/evaluations", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/evaluations", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 0
@@ -331,9 +325,7 @@ def test_list_evaluations_with_runs(admin_app, session) -> None:
     asyncio.get_event_loop().run_until_complete(session.commit())
 
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/evaluations", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/evaluations", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
@@ -373,9 +365,7 @@ def test_list_evaluations_filters_by_index_version(admin_app, session) -> None:
     asyncio.get_event_loop().run_until_complete(session.commit())
 
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/evaluations?index_version=v2", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/evaluations?index_version=v2", headers=_admin_headers())
     body = response.json()
     assert body["total"] == 1
     assert body["runs"][0]["index_version"] == "v2"
@@ -400,9 +390,7 @@ def test_get_evaluation_detail(admin_app, session) -> None:
     asyncio.get_event_loop().run_until_complete(session.commit())
 
     with TestClient(admin_app) as client:
-        response = client.get(
-            f"/v1/admin/evaluations/{run.run_id}", headers=_admin_headers()
-        )
+        response = client.get(f"/v1/admin/evaluations/{run.run_id}", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["run"]["metrics"]["cases_passed"] == 12
@@ -411,9 +399,7 @@ def test_get_evaluation_detail(admin_app, session) -> None:
 
 def test_get_evaluation_404(admin_app) -> None:
     with TestClient(admin_app) as client:
-        response = client.get(
-            f"/v1/admin/evaluations/{uuid.uuid4()}", headers=_admin_headers()
-        )
+        response = client.get(f"/v1/admin/evaluations/{uuid.uuid4()}", headers=_admin_headers())
     assert response.status_code == 404
 
 
@@ -424,9 +410,7 @@ def test_get_evaluation_404(admin_app) -> None:
 
 def test_list_ingestion_jobs_empty(admin_app) -> None:
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/ingestion_jobs", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/ingestion_jobs", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 0
@@ -453,9 +437,7 @@ def test_list_ingestion_jobs_with_seed(admin_app, session) -> None:
     asyncio.get_event_loop().run_until_complete(session.commit())
 
     with TestClient(admin_app) as client:
-        response = client.get(
-            "/v1/admin/ingestion_jobs", headers=_admin_headers()
-        )
+        response = client.get("/v1/admin/ingestion_jobs", headers=_admin_headers())
     body = response.json()
     assert body["total"] == 1
     job = body["jobs"][0]
@@ -523,9 +505,7 @@ def test_get_ingestion_job_detail(admin_app, session) -> None:
     asyncio.get_event_loop().run_until_complete(session.commit())
 
     with TestClient(admin_app) as client:
-        response = client.get(
-            f"/v1/admin/ingestion_jobs/{job.job_id}", headers=_admin_headers()
-        )
+        response = client.get(f"/v1/admin/ingestion_jobs/{job.job_id}", headers=_admin_headers())
     assert response.status_code == 200
     body = response.json()
     assert body["job"]["error_type"] == "NetworkError"
@@ -533,7 +513,5 @@ def test_get_ingestion_job_detail(admin_app, session) -> None:
 
 def test_get_ingestion_job_404(admin_app) -> None:
     with TestClient(admin_app) as client:
-        response = client.get(
-            f"/v1/admin/ingestion_jobs/{uuid.uuid4()}", headers=_admin_headers()
-        )
+        response = client.get(f"/v1/admin/ingestion_jobs/{uuid.uuid4()}", headers=_admin_headers())
     assert response.status_code == 404

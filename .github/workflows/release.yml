@@ -1,0 +1,165 @@
+# Release pipeline.
+#
+# Triggers on a version tag (vX.Y.Z). Builds the api and worker
+# images, pushes them to the registry with both the tag and a
+# floating `latest` alias, then drafts a GitHub Release.
+#
+# Versioning follows SemVer. Tags must start with `v`. Pre-release
+# tags (e.g. v0.2.0-rc1) are marked as pre-release automatically.
+#
+# Required repo settings:
+#   * GHCR is the registry (built-in; no extra config).
+#   * Package permissions: write for Actions on the workflow run.
+#
+# Optional secrets (only for non-GHCR registries):
+#   * REGISTRY_USERNAME / REGISTRY_TOKEN — if mirroring to GHCR's
+#     private org, set these; otherwise the default GITHUB_TOKEN
+#     with `packages: write` is enough.
+
+name: release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (e.g. v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  # ──────────────── 1. Validate the tag ────────────────
+  validate:
+    name: validate tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      is_prerelease: ${{ steps.parse.outputs.is_prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Extract version
+        id: parse
+        # Push events: ref_name looks like ``refs/tags/v0.2.0``.
+        # workflow_dispatch: input is the bare version string.
+        # Anything containing a hyphen is a pre-release
+        # (e.g. v0.2.0-rc1, v0.2.0-beta).
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          if [[ ! "${VERSION}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+            echo "error: ${VERSION} is not a valid SemVer tag" >&2
+            exit 1
+          fi
+          IS_PRERELEASE="false"
+          if [[ "${VERSION}" == *"-"* ]]; then
+            IS_PRERELEASE="true"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${IS_PRERELEASE}" >> "$GITHUB_OUTPUT"
+          echo "Building release: ${VERSION} (prerelease=${IS_PRERELEASE})"
+
+  # ──────────────── 2. Build the docker images ────────────────
+  build:
+    name: build images
+    runs-on: ubuntu-latest
+    needs: validate
+    strategy:
+      # One matrix entry per image. ``fail-fast: false`` so a
+      # single image failure doesn't skip the other.
+      fail-fast: false
+      matrix:
+        target: [api, worker]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        # GITHUB_TOKEN works for the same-org registry.
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/citevyn-${{ matrix.target }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=citevyn-${{ matrix.target }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.validate.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Build + push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile.${{ matrix.target }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # ``--pull`` keeps the builder base image current.
+          # ``cache-from: type=gha`` reuses layers across runs.
+          pull: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+
+  # ──────────────── 3. Draft the GitHub release ────────────────
+  release:
+    name: cut release
+    runs-on: ubuntu-latest
+    needs: [validate, build]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Generate changelog
+        id: changelog
+        # Pulls the section between the previous tag and the new
+        # one. Falls back to a placeholder if no prior tag exists
+        # (e.g. the very first release).
+        run: |
+          PREV_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+' | grep -v "${GITHUB_REF_NAME}" | head -1 || true)
+          if [[ -z "${PREV_TAG}" ]]; then
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          fi
+          {
+            echo "## What's changed"
+            echo ""
+            git log ${RANGE} --pretty=format:"- %s (%h)" | head -50
+          } > changelog.md
+          cat changelog.md
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.version }}
+          name: ${{ needs.validate.outputs.version }}
+          draft: true
+          prerelease: ${{ needs.validate.outputs.is_prerelease == 'true' }}
+          body_path: changelog.md
+          # Reference the published images in the release body.
+          generate_release_notes: false

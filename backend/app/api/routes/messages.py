@@ -30,7 +30,7 @@ from app.answer.orchestrator import Orchestrator
 from app.core.config import Settings, get_settings
 from app.core.db import get_session
 from app.core.errors import APIErrorCode, error_response
-from app.core.security import require_demo_api_key
+from app.core.rate_limit import rate_limited_demo
 from app.models import Message, Session
 
 router = APIRouter(prefix="/v1/sessions", tags=["messages"])
@@ -147,7 +147,7 @@ async def post_message(
     body: Annotated[AnswerRequest, Body()],
     settings: Annotated[Settings, Depends(get_settings)],
     db: Annotated[AsyncSession, Depends(get_session)],
-    _user_id: Annotated[str, Depends(require_demo_api_key)],
+    _user_id: Annotated[str, Depends(rate_limited_demo)],
 ) -> dict[str, Any]:
     """Ask a question and return the orchestrator's response shape."""
     request_id = _request_id(request)
@@ -194,7 +194,7 @@ async def get_message(
     session_id: Annotated[uuid.UUID, Path()],
     message_id: Annotated[uuid.UUID, Path()],
     db: Annotated[AsyncSession, Depends(get_session)],
-    _user_id: Annotated[str, Depends(require_demo_api_key)],
+    _user_id: Annotated[str, Depends(rate_limited_demo)],
 ) -> dict[str, Any]:
     """Return a message and its retrieval trace."""
     request_id = _request_id(request)

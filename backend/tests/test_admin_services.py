@@ -147,9 +147,7 @@ async def test_list_versions_sorted_by_created_at_asc(session: AsyncSession) -> 
     # SQLite datetime resolution is 1s — give each row a unique timestamp
     # by re-stamping them in known order. We don't need exact equality,
     # only the stable order.
-    assert [r.index_version for r in rows] == sorted(
-        r.index_version for r in rows
-    )
+    assert [r.index_version for r in rows] == sorted(r.index_version for r in rows)
 
 
 @pytest.mark.asyncio
@@ -173,9 +171,7 @@ async def test_count_documents_for_version_zero_when_none_attached(
 ) -> None:
     """A version with no documents counts as zero, not None."""
     await seed_catalog(session)
-    count = await index_version_service.count_documents_for_version(
-        session, index_version="v1"
-    )
+    count = await index_version_service.count_documents_for_version(session, index_version="v1")
     # The seed's documents are tagged with index_version="v1", so this
     # asserts the query path is exercised (count > 0 from the seed).
     assert count >= 1
@@ -203,12 +199,8 @@ async def test_count_documents_for_version_isolates_per_version(
     session.add(doc)
     await session.flush()
 
-    v1_count = await index_version_service.count_documents_for_version(
-        session, index_version="v1"
-    )
-    v2_count = await index_version_service.count_documents_for_version(
-        session, index_version="v2"
-    )
+    v1_count = await index_version_service.count_documents_for_version(session, index_version="v1")
+    v2_count = await index_version_service.count_documents_for_version(session, index_version="v2")
     assert v1_count >= 1
     assert v2_count == 1
 
@@ -257,10 +249,14 @@ async def test_promote_version_writes_audit_event(session: AsyncSession) -> None
     await session.commit()
 
     rows = (
-        await session.execute(
-            select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+        (
+            await session.execute(
+                select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
     audit = rows[0]
     assert audit.resource_id == candidate.index_version
@@ -288,10 +284,14 @@ async def test_promote_version_is_idempotent(session: AsyncSession) -> None:
 
     # No new audit row.
     rows = (
-        await session.execute(
-            select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+        (
+            await session.execute(
+                select(AuditEvent).where(AuditEvent.action == AuditAction.promote_index)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     assert rows == []
 
 
@@ -365,9 +365,7 @@ async def test_get_run_returns_row(session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_get_run_missing_returns_none(session: AsyncSession) -> None:
     await seed_catalog(session)
-    fetched = await evaluation_service.get_run(
-        session, run_id=uuid.uuid4()
-    )
+    fetched = await evaluation_service.get_run(session, run_id=uuid.uuid4())
     assert fetched is None
 
 

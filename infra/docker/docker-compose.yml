@@ -1,52 +1,179 @@
-# Local development infrastructure for CiteVyn AI.
+# ────────────────────────────────────────────────────────────────────────────
+# CiteVyn infrastructure — single file for local dev AND production.
 #
-# Brings up Postgres (with the pgvector extension) and Redis. The
-# backend reads the connection string from CITEVYN_DATABASE_URL; the
-# default value in .env.example points at the service defined below.
+# Profiles:
+#   (none)         — db + redis (local development).
+#   prod           — adds api, worker, caddy with production hardening.
+#   backup         — one-shot Postgres dump (see scripts/backup.sh).
 #
 # Usage:
-#   docker compose -f infra/docker/docker-compose.yml up -d db
-#   docker compose -f infra/docker/docker-compose.yml down
+#   docker compose -f infra/docker/docker-compose.yml up -d db redis
+#   docker compose -f infra/docker/docker-compose.yml --profile prod up -d
+#   docker compose -f infra/docker/docker-compose.yml --profile backup run --rm backup
 #
-# This file is intentionally local-only. It is NOT used in CI — tests
+# This file is the canonical infra entry point — both ``make
+# dev-up`` and ``make deploy`` invoke it. CI does not use it; tests
 # run against an in-memory SQLite engine.
-#
-# Redis note (MVP): the ``redis`` service is provisioned for forward
-# compatibility with the Slice 8+ distributed answer-cache layer
-# (see docs/ARCHITECTURE.md §5). The MVP does not connect to it; the
-# default ``make demo`` target only requires the ``db`` service to be
-# up. You may remove the ``redis`` block once the cache layer lands,
-# but keeping it now lets reviewers exercise the full compose stack
-# without having to re-add the service later.
+# ────────────────────────────────────────────────────────────────────────────
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-app-defaults: &app-defaults
+  restart: unless-stopped
+  logging: *default-logging
+  environment: &app-env
+    # Connection strings target the docker-network hostnames
+    # (``db``, ``redis``) — they are NOT reachable from outside
+    # the compose network, so the env file ships docker-internal
+    # values. The host-side overrides live in .env.example (used
+    # by ``make dev`` for local uvicorn).
+    CITEVYN_DATABASE_URL: postgresql+psycopg://citevyn:${POSTGRES_PASSWORD}@db:5432/citevyn
+    CITEVYN_REDIS_URL: redis://redis:6379/0
+    CITEVYN_ENVIRONMENT: production
+    CITEVYN_RATE_LIMIT_ENABLED: "true"
+    CITEVYN_RATE_LIMIT_WINDOW_SECONDS: "3600"
+    CITEVYN_RATE_LIMIT_DEMO_USER_PER_HOUR: "30"
+    CITEVYN_RATE_LIMIT_ADMIN_PER_HOUR: "1000"
+    PYTHONUNBUFFERED: "1"
 
 services:
+  # ──────────────── Stateful services (always-on) ────────────────
+  # The db port is published on 127.0.0.1 only — the api still
+  # reaches it on the docker network (host: ``db``). The loopback
+  # binding lets the smoke script and any host-side ``uv run
+  # alembic`` connect on localhost without exposing the database
+  # to the public network. The production security boundary is
+  # Caddy on :443; Postgres is never reachable from the internet.
   db:
     image: pgvector/pgvector:pg16
     container_name: citevyn-db
+    restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: citevyn
       POSTGRES_USER: citevyn
-      POSTGRES_PASSWORD: citevyn
-    ports:
-      - "5432:5432"
+      # POSTGRES_PASSWORD is sourced from the host-side .env
+      # (NEVER checked in). The local-dev fallback is the same
+      # username/password the README documents.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - citevyn_pgdata:/var/lib/postgresql/data
+      - ./initdb.d:/docker-entrypoint-initdb.d:ro
+    ports:
+      # 127.0.0.1 = loopback only. Override the host port with
+      # ``CITEVYN_DB_PORT`` if 5432 is taken on the host.
+      - "127.0.0.1:${CITEVYN_DB_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U citevyn -d citevyn"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 30s
 
   redis:
     image: redis:7-alpine
     container_name: citevyn-redis
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    logging: *default-logging
+    # No public port by default — Redis is only reachable from
+    # inside the compose network. To debug from the host, run
+    #   docker compose exec redis redis-cli.
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 10s
       timeout: 3s
       retries: 10
+      start_period: 5s
+
+  # ──────────────── Stateless app (prod profile) ────────────────
+  api:
+    profiles: ["prod"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+      args:
+        VERSION: ${VERSION:-dev}
+    image: citevyn/api:${VERSION:-dev}
+    container_name: citevyn-api
+    <<: *app-defaults
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      # On the host, the API only listens on the docker network
+      # — Caddy is the public entry point.
+      CITEVYN_LLM_PROVIDER: ${CITEVYN_LLM_PROVIDER:-stub}
+      CITEVYN_LLM_API_KEY: ${CITEVYN_LLM_API_KEY:-}
+      CITEVYN_LLM_MODEL: ${CITEVYN_LLM_MODEL:-}
+      CITEVYN_ADMIN_API_KEY: ${CITEVYN_ADMIN_API_KEY:?CITEVYN_ADMIN_API_KEY must be set in .env}
+    # No host port — Caddy proxies in via the docker network.
+
+  worker:
+    profiles: ["prod"]
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+      args:
+        VERSION: ${VERSION:-dev}
+    image: citevyn/worker:${VERSION:-dev}
+    container_name: citevyn-worker
+    <<: *app-defaults
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      CITEVYN_LLM_PROVIDER: ${CITEVYN_LLM_PROVIDER:-stub}
+      CITEVYN_LLM_API_KEY: ${CITEVYN_LLM_API_KEY:-}
+      CITEVYN_LLM_MODEL: ${CITEVYN_LLM_MODEL:-}
+
+  caddy:
+    profiles: ["prod"]
+    image: caddy:2-alpine
+    container_name: citevyn-caddy
+    restart: unless-stopped
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  # ──────────────── One-shot backup (backup profile) ────────────────
+  backup:
+    profiles: ["backup"]
+    image: postgres:16-alpine
+    container_name: citevyn-backup
+    logging: *default-logging
+    restart: "no"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    volumes:
+      - ./backups:/backups
+    command: >
+      sh -c "pg_dump -h db -U citevyn -d citevyn
+             --format=custom
+             --no-owner
+             --no-privileges
+             -f /backups/citevyn-$$(date -u +%Y%m%dT%H%M%SZ).dump"
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   citevyn_pgdata:
+  caddy_data:
+  caddy_config:

@@ -51,9 +51,7 @@ class Chunk(Base):
     # embedding. The retriever short-circuits on ``is None`` so the
     # pipeline stays functional. ``nullable=True`` already implies
     # the default is ``None`` — no need to spell it out.
-    embedding: Mapped[list[float] | None] = mapped_column(
-        PickledEmbedding(), nullable=True
-    )
+    embedding: Mapped[list[float] | None] = mapped_column(PickledEmbedding(), nullable=True)
 
     document: Mapped[Document] = relationship(
         back_populates="chunks",

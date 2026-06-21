@@ -17,6 +17,11 @@ class LLMProvider(enum.StrEnum):
 
     stub = "stub"
     anthropic = "anthropic"
+    # Gemini and the secondary multi-provider land in Slice 9b; the enum members are
+    # declared so :class:`LLMResult.provider` already accepts them
+    # before the corresponding client implementations are wired.
+    gemini = "gemini"
+    PROVIDER_ROUTER = "router"
 
 
 class LLMResult(BaseModel):
@@ -31,4 +36,4 @@ class LLMResult(BaseModel):
     input_tokens: int = Field(ge=0)
     output_tokens: int = Field(ge=0)
     model: str
-    provider: Literal["stub", "anthropic"]
+    provider: Literal["stub", "anthropic", "gemini", "router"]

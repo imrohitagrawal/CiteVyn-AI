@@ -40,9 +40,7 @@ async def test_record_audit_event_writes_full_row(session) -> None:
     await session.commit()
 
     row = (
-        await session.execute(
-            select(AuditEvent).where(AuditEvent.user_id == user_id)
-        )
+        await session.execute(select(AuditEvent).where(AuditEvent.user_id == user_id))
     ).scalar_one()
     assert row.action is AuditAction.login
     assert row.role is UserRole.demo_user
@@ -109,9 +107,7 @@ async def test_record_ask_question_stamps_envelope(session) -> None:
     await session.commit()
 
     row = (
-        await session.execute(
-            select(AuditEvent).where(AuditEvent.user_id == "user-7")
-        )
+        await session.execute(select(AuditEvent).where(AuditEvent.user_id == "user-7"))
     ).scalar_one()
     assert row.action is AuditAction.ask_question
     assert row.resource_type == "message"
@@ -157,9 +153,7 @@ async def test_record_ask_question_extra_overrides_envelope_keys(
     await session.commit()
 
     row = (
-        await session.execute(
-            select(AuditEvent).where(AuditEvent.user_id == "user-7")
-        )
+        await session.execute(select(AuditEvent).where(AuditEvent.user_id == "user-7"))
     ).scalar_one()
     assert row.metadata_["intent"] == "rag.custom"
     assert row.metadata_["note"] == "explanation"

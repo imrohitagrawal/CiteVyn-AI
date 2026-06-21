@@ -103,9 +103,7 @@ def test_search_exact_returns_hit_with_score_one(app_with_seeded_session, sessio
         assert body["request_id"].startswith("req_")
 
 
-def test_search_exact_returns_empty_for_unknown_term(
-    app_with_seeded_session, session
-) -> None:
+def test_search_exact_returns_empty_for_unknown_term(app_with_seeded_session, session) -> None:
     """An unknown term returns ``total=0`` and an empty list, not 404."""
     import asyncio
 
@@ -123,9 +121,7 @@ def test_search_exact_returns_empty_for_unknown_term(
         assert body["hits"] == []
 
 
-def test_search_exact_scopes_by_product_area(
-    app_with_seeded_session, session
-) -> None:
+def test_search_exact_scopes_by_product_area(app_with_seeded_session, session) -> None:
     """The same term in two product areas is a different answer."""
     import asyncio
     from datetime import UTC, datetime
@@ -202,15 +198,10 @@ def test_search_exact_scopes_by_product_area(
         assert claude.status_code == 200
         assert codex.json()["hits"][0]["product_area"] == "codex"
         assert claude.json()["hits"][0]["product_area"] == "claude_api"
-        assert (
-            codex.json()["hits"][0]["chunk_id"]
-            != claude.json()["hits"][0]["chunk_id"]
-        )
+        assert codex.json()["hits"][0]["chunk_id"] != claude.json()["hits"][0]["chunk_id"]
 
 
-def test_search_exact_clamps_limit_to_max_results(
-    app_with_seeded_session, session
-) -> None:
+def test_search_exact_clamps_limit_to_max_results(app_with_seeded_session, session) -> None:
     """The route's request validation caps ``limit`` to :data:`MAX_RESULTS`."""
     import asyncio
     from datetime import UTC, datetime
@@ -293,9 +284,7 @@ def test_search_exact_clamps_limit_to_max_results(
         assert body["total"] == MAX_RESULTS
 
 
-def test_search_exact_passes_through_term_type_filter(
-    app_with_seeded_session, session
-) -> None:
+def test_search_exact_passes_through_term_type_filter(app_with_seeded_session, session) -> None:
     """``term_type`` filter is forwarded to the service."""
     import asyncio
 
@@ -315,9 +304,7 @@ def test_search_exact_passes_through_term_type_filter(
         assert wrong.json()["total"] == 0
 
 
-def test_search_exact_422_for_invalid_term_type(
-    app_with_seeded_session, session
-) -> None:
+def test_search_exact_422_for_invalid_term_type(app_with_seeded_session, session) -> None:
     """An unknown ``term_type`` value is rejected by the schema."""
     import asyncio
 
@@ -353,9 +340,7 @@ def test_health_index_pre_index_when_no_rows(app_with_seeded_session) -> None:
         assert body["request_id"].startswith("req_")
 
 
-def test_health_index_ready_when_active_present(
-    app_with_seeded_session, session
-) -> None:
+def test_health_index_ready_when_active_present(app_with_seeded_session, session) -> None:
     """A seeded catalog with an active row reports ``status=ready``."""
     import asyncio
 
@@ -393,8 +378,6 @@ def test_search_exact_422_redacts_user_input(app_with_seeded_session) -> None:
         )
         assert response.status_code == 422
         body_str = response.text
-        assert sensitive not in body_str, (
-            f"422 envelope leaked the offending input: {body_str}"
-        )
+        assert sensitive not in body_str, f"422 envelope leaked the offending input: {body_str}"
         # The redactor's marker is in the body.
         assert "redacted" in body_str

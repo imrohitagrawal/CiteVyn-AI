@@ -149,15 +149,11 @@ class IngestionRunner:
             await session.flush()
 
             self._set_stage(session, job, JobStage.embedding)
-            chunks = await self._materialize_chunks(
-                session, source=source, drafts=drafts
-            )
+            chunks = await self._materialize_chunks(session, source=source, drafts=drafts)
             await session.flush()
 
             self._set_stage(session, job, JobStage.indexing)
-            terms = await self._materialize_terms(
-                session, source=source, chunks=chunks
-            )
+            terms = await self._materialize_terms(session, source=source, chunks=chunks)
             self._mark_completed(session, job=job)
             await session.commit()
 
@@ -171,9 +167,7 @@ class IngestionRunner:
             )
         except Exception as exc:
             await session.rollback()
-            self._mark_failed(
-                session, job=job, error_type=type(exc).__name__, message=str(exc)
-            )
+            self._mark_failed(session, job=job, error_type=type(exc).__name__, message=str(exc))
             await session.commit()
             return RunResult(
                 job_id=job_id,

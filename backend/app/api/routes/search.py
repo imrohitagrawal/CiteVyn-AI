@@ -25,8 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
 from app.core.db import get_session
-from app.core.rate_limit import enforce_rate_limit
-from app.core.security import DEMO_USER_ID, require_demo_api_key
+from app.core.rate_limit import rate_limited_demo
 from app.models.enums import IndexStatus, TermType
 from app.models.index_versions import IndexVersion
 from app.services.exact_lookup import (
@@ -92,22 +91,20 @@ class ExactSearchResponse(BaseModel):
 async def search_exact(
     request: Request,
     body: Annotated[ExactSearchRequest, Body()],
-    user_id: Annotated[str, Depends(require_demo_api_key)],
     settings: Annotated[Settings, Depends(get_settings)],
     db: Annotated[AsyncSession, Depends(get_session)],
+    _user_id: Annotated[str, Depends(rate_limited_demo)],
 ) -> ExactSearchResponse:
     """Return exact-term matches for ``body.term`` in ``body.product_area``.
 
     The demo path runs as a single :data:`DEMO_USER_ID`; the
     per-user limiter still applies so a flood of exact searches
-    doesn't starve the answer endpoint.
+    doesn't starve the answer endpoint. The ``rate_limited_demo``
+    dependency chains :func:`require_demo_api_key` with
+    :func:`enforce_rate_limit` so every authenticated route
+    shares one enforcement path.
     """
     request_id = _request_id(request)
-    await enforce_rate_limit(
-        user_id=user_id or DEMO_USER_ID,
-        role="demo_user",
-        settings=settings,
-    )
 
     hits: list[ExactLookupHit] = await exact_lookup(
         db,

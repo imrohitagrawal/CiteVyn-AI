@@ -76,10 +76,28 @@ _ERROR_MSG_RE = re.compile(r'"[a-z][a-z0-9 _-]{4,60}"')
 # wins; we filter via this allowlist.
 _NON_TERMS = frozenset(
     {
-        "THE", "AND", "FOR", "WITH", "FROM", "INTO",
-        "EVERY", "EACH", "WHEN", "WHILE", "ALSO",
-        "ALL", "ANY", "ARE", "NOT", "USE", "USED",
-        "SET", "HAS", "HAVE", "THIS", "THAT",
+        "THE",
+        "AND",
+        "FOR",
+        "WITH",
+        "FROM",
+        "INTO",
+        "EVERY",
+        "EACH",
+        "WHEN",
+        "WHILE",
+        "ALSO",
+        "ALL",
+        "ANY",
+        "ARE",
+        "NOT",
+        "USE",
+        "USED",
+        "SET",
+        "HAS",
+        "HAVE",
+        "THIS",
+        "THAT",
     }
 )
 
@@ -137,9 +155,7 @@ def _is_meaningful(term: str, term_type: TermType) -> bool:
     """Reject obvious non-terms (e.g. ``THE`` as an env var)."""
     if term_type is TermType.environment_variable and term in _NON_TERMS:
         return False
-    return not (
-        term_type is TermType.config_key and term.upper() in _NON_TERMS
-    )
+    return not (term_type is TermType.config_key and term.upper() in _NON_TERMS)
 
 
 __all__ = [

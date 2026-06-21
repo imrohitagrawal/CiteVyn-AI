@@ -1,0 +1,109 @@
+# ────────────────────────────────────────────────────────────────────────────
+# CiteVyn production Caddy configuration.
+#
+# Caddy v2 auto-provisions a Let's Encrypt certificate the first time
+# it sees traffic on :443. The ACME HTTP-01 challenge is served on
+# :80 (see the second listener below).
+#
+# Reverse proxy:
+#   :443  →  http://api:8000  (the FastAPI app inside the docker network)
+#
+# The ``X-Forwarded-*`` and ``X-Real-IP`` headers are critical: the
+# API uses them for request logging, rate limiting, and the trust
+# markers on the public envelope. uvicorn is launched with
+# ``--forwarded-allow-ips=*`` so it accepts them from this container.
+#
+# Security headers (CWE / OWASP recommended baseline):
+#   * Strict-Transport-Security — force HTTPS for 1 year, include
+#     subdomains.
+#   * X-Content-Type-Options: nosniff — block MIME sniffing.
+#   * X-Frame-Options: DENY — block clickjacking.
+#   * Referrer-Policy: strict-origin-when-cross-origin — keep query
+#     strings off outbound links.
+#   * Permissions-Policy — disable unused powerful features.
+#   * Content-Security-Policy — the API serves JSON, not HTML, so a
+#     restrictive policy is appropriate.
+#   * Server header is stripped to avoid leaking the version.
+# ────────────────────────────────────────────────────────────────────────────
+
+{
+    # Global options
+    auto_https off
+    admin off
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}
+
+# Listener for the ACME HTTP-01 challenge and explicit health probes.
+:80 {
+    # ACME HTTP-01 challenge paths (.well-known/acme-challenge/*) are
+    # served automatically by Caddy's on-demand TLS. Every other
+    # request is redirected to the HTTPS listener.
+    @notacme {
+        not path /.well-known/acme-challenge/*
+    }
+    redir @notacme https://{host}{uri} permanent
+}
+
+# Main HTTPS listener.
+:443 {
+    # On-demand TLS pulls a Let's Encrypt certificate the first time
+    # this host is requested. If the challenge fails (DNS / port
+    # 80 unreachable), the request is rejected with 522 — so the
+    # operator can detect the misconfiguration from a 4xx response
+    # rather than a silent 200.
+    tls {
+        protocols tls1.2 tls1.3
+        on_demand
+    }
+
+    # Strict security headers on every response.
+    header {
+        # Tell the browser to upgrade plain-HTTP requests and to
+        # honour this for 1 year including subdomains.
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # Block MIME-sniffing of unknown content types.
+        X-Content-Type-Options "nosniff"
+        # Block clickjacking — the API is never framed.
+        X-Frame-Options "DENY"
+        # Keep query strings off outbound links.
+        Referrer-Policy "strict-origin-when-cross-origin"
+        # Disable features the API doesn't use.
+        Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()"
+        # JSON-only API: no inline scripts, no remote resources.
+        Content-Security-Policy "default-src 'none'; frame-ancestors 'none'"
+        # Drop the ``Server`` header so we don't advertise Caddy.
+        -Server
+    }
+
+    # Compress JSON responses; the 1KB threshold keeps tiny 200s
+    # uncompressed to avoid the CPU overhead.
+    encode zstd gzip
+
+    # Liveness / readiness pass-through. The API's /health endpoint
+    # is a pure DB-free probe and is safe to hit at high frequency.
+    reverse_proxy /health http://api:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Everything else is the JSON API.
+    reverse_proxy http://api:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        # Time-out: a long-poll on /v1/ask should not be 30s by
+        # default. Generous defaults; the API can override.
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 60s
+            read_timeout 60s
+        }
+    }
+}

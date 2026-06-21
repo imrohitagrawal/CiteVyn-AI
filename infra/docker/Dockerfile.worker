@@ -1,0 +1,73 @@
+# syntax=docker/dockerfile:1.7
+# ────────────────────────────────────────────────────────────────────────────
+# CiteVyn Worker container — multi-stage build for production.
+#
+# Mirrors the API image's builder/runtime split but with a different
+# CMD (the worker entry-point script). The worker process is a
+# long-running poll of the ``ingestion_jobs`` queue; it does not
+# expose a TCP port and it does not need uvicorn.
+#
+# Why a separate image (vs the API image + override CMD): the worker
+# image is smaller because uvicorn + starlette + fastapi are not in
+# the dependency tree of the worker CLI. Smaller images boot faster,
+# have a smaller attack surface, and ship less transitive code.
+#
+# Build:
+#   docker build -f infra/docker/Dockerfile.worker \
+#       --build-arg VERSION=$(git describe --tags --always) \
+#       -t citevyn/worker:VERSION .
+#
+# Run:
+#   docker run --rm \
+#       --env-file infra/docker/prod.env \
+#       citevyn/worker:VERSION
+# ────────────────────────────────────────────────────────────────────────────
+
+# ─────────────────────────── Stage 1: builder ──────────────────────────────
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+
+ARG VERSION=dev
+ENV VERSION=${VERSION}
+
+WORKDIR /build
+
+COPY backend/pyproject.toml backend/uv.lock ./backend/
+WORKDIR /build/backend
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+COPY backend/app ./app
+COPY backend/README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-editable
+
+# ─────────────────────────── Stage 2: runtime ──────────────────────────────
+FROM python:3.12-slim-bookworm AS runtime
+
+ARG VERSION=dev
+ENV VERSION=${VERSION} \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PATH="/app/.venv/bin:${PATH}"
+
+RUN groupadd --system --gid 1001 appuser \
+    && useradd  --system --uid 1001 --gid appuser --home-dir /app --shell /usr/sbin/nologin appuser
+
+WORKDIR /app
+
+COPY --from=builder --chown=appuser:appuser /build/backend/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /build/backend/app    /app/app
+COPY --from=builder --chown=appuser:appuser /build/backend/README.md /app/README.md
+
+USER appuser
+
+# No EXPOSE (worker is headless).
+# No HEALTHCHECK (the worker writes to ingestion_jobs; a missing
+# process is detected by the orchestrator, not by TCP probe).
+#
+# SIGTERM behaviour: citevyn-worker installs a signal handler that
+# drains the in-flight job before exiting, so docker stop's
+# default 10-second grace period is enough for clean shutdown.
+
+CMD ["citevyn-worker"]

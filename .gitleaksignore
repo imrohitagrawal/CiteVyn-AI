@@ -1,0 +1,14 @@
+# gitleaks ignore list — false positives that should not block the gate.
+#
+# Each line: <fingerprint>
+#
+# Use ``gitleaks detect --report-path gitleaks.json`` locally to get
+# fingerprints for new false positives, then pin them here.
+#
+# All entries below are intentional and documented:
+#
+#   * README.md:64 — the ``curl -H "X-API-Key: ..."`` smoke-test
+#     example. The token is the public, in-repo demo key
+#     (``local-demo-key``) shipped by ``.env.example``; it is not
+#     a secret.
+1d62074e0ebbb622233f6189a2c630d2c4252cfc:README.md:curl-auth-header:64

@@ -1,0 +1,57 @@
+# ────────────────────────────────────────────────────────────────────────────
+# Files that should NEVER end up inside a docker build context.
+# Keeping the build context small (a) reduces build time, (b)
+# prevents accidentally shipping secrets (.env, *.dump), and (c)
+# avoids including the host's git history inside the image.
+# ────────────────────────────────────────────────────────────────────────────
+
+# VCS metadata
+.git/
+.gitignore
+.gitattributes
+
+# Build / cache outputs
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+htmlcov/
+.coverage
+
+# Local config and secrets
+.env
+.env.*
+!.env.example
+*.log
+*.pid
+
+# Docker / infra runtime artefacts
+infra/docker/backups/
+infra/docker/caddy_data/
+infra/docker/caddy_config/
+infra/docker/citevyn_pgdata/
+
+# Node / frontend (not built in api / worker images)
+node_modules/
+.next/
+frontend/node_modules/
+frontend/dist/
+
+# Test / coverage data
+tests/
+backend/tests/
+
+# Documentation, diagrams, design assets
+docs/
+diagrams/
+*.md
+!backend/README.md
+
+# Repo-root files we don't ship inside the image
+.claude/
+.agents/
+.smoke-*
+.pytest_cache/

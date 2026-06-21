@@ -19,6 +19,9 @@ venv/
 .idea/
 .vscode/
 
+# Claude Code agent state (per-machine; not part of the project)
+.claude/
+
 # Logs
 *.log
 logs/
@@ -31,9 +34,18 @@ build/
 node_modules/
 .next/
 coverage/
+frontend/
+package-lock.json
 
 # Docker/local data
 *.db
 *.sqlite
 data/
 tmp/
+
+# Production runtime artefacts (volumes are bind-mounted; data
+# is owned by the host user, not the repo).
+infra/docker/backups/citevyn-*.dump
+infra/docker/caddy_data/
+infra/docker/caddy_config/
+infra/docker/citevyn_pgdata/

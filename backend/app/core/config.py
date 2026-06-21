@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # ---------------------------------------------------------------------------
@@ -50,14 +50,17 @@ class Settings(BaseSettings):
     # try to parse the whole string as a single JSON list and fail.
     cors_allowed_origins: Annotated[list[str], NoDecode] = list(DEFAULT_CORS_ALLOWED_ORIGINS)
 
-    # --- Rate limiting (Slice 8) ---
-    # Per-process sliding-window limits from ``docs/SECURITY_MODEL.md §6``:
-    # demo_user 30 q/h, admin 100 q/h. The limiter is per-process only;
-    # a Redis-backed implementation is a Slice 10+ concern.
+    # --- Rate limiting (Slice 8 + Slice 9a) ---
+    # Sliding-window limits from ``docs/SECURITY_MODEL.md §6``:
+    # demo_user 30 q/h, admin 100 q/h. The limiter is **Redis-backed**
+    # when ``CITEVYN_REDIS_URL`` is set, in-process otherwise. The
+    # in-process path is retained for hermetic tests and single-worker
+    # development; production deploys MUST set ``CITEVYN_REDIS_URL``.
     rate_limit_enabled: bool = True
     rate_limit_demo_user_per_hour: int = Field(default=30, ge=1)
     rate_limit_admin_per_hour: int = Field(default=100, ge=1)
     rate_limit_window_seconds: int = Field(default=3600, ge=1)
+    redis_url: str | None = None
 
     # --- Persistence (Slice 2+) ---
     database_url: str = Field(
@@ -70,7 +73,7 @@ class Settings(BaseSettings):
     pg_test_url: str | None = None
 
     # --- LLM (Slice 4+) ---
-    llm_provider: str = "stub"  # "stub" or "anthropic"
+    llm_provider: str = "stub"  # "stub" | "anthropic" | "gemini" | "" (9b)
     llm_model: str = "claude-opus-4-8"
     llm_max_tokens: int = Field(default=1024, ge=1)
     llm_temperature: float = Field(default=0.2, ge=0.0, le=1.0)
@@ -115,6 +118,19 @@ class Settings(BaseSettings):
     # feed the operator ingested.
     source_version_hash: str = "sha256:mvp-snapshot-1"
 
+    # --- Fixtures root (Slice 9a) ---
+    # Path to the on-disk source corpus the ingestion worker reads.
+    # Local dev defaults to the test fixtures shipped with the repo;
+    # production deploys override to a bind-mounted directory managed
+    # by ``scripts/refresh_sources.sh`` (lands in Slice 9c).
+    fixtures_root: str = "backend/fixtures/sources"
+
+    # --- Redis key prefix (Slice 9a) ---
+    # All keys created by the rate limiter are namespaced with this
+    # prefix so multiple CiteVyn environments (dev / staging / prod)
+    # can share a single Redis instance without colliding.
+    redis_key_prefix: str = "citevyn:rl"
+
     # --- Response copy (Slice 4+) ---
     unsupported_refusal: str = DEFAULT_UNSUPPORTED_REFUSAL
     no_answer_fallback: str = DEFAULT_NO_ANSWER_FALLBACK
@@ -135,6 +151,61 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    # ------------------------------------------------------------------
+    # Production guards
+    # ------------------------------------------------------------------
+    #
+    # These validators are the canonical "fail at parse time" check for
+    # env combinations that should never reach production. They run on
+    # every ``Settings()`` construction — uvicorn, alembic, the
+    # worker, an admin script, a test. The previous Slice 9a design
+    # only ran the LLM-provider check in the FastAPI ``lifespan`` body
+    # which meant a bare ``TestClient(app)`` (no ``with`` block) never
+    # exercised the guard, and an alembic / worker bootstrap would
+    # silently accept a stub provider in production.
+
+    @model_validator(mode="after")
+    def _reject_stub_llm_in_production(self) -> "Settings":
+        if self.environment == "production" and self.llm_provider == "stub":
+            raise ValueError(
+                "CITEVYN_LLM_PROVIDER='stub' is not allowed when "
+                "CITEVYN_ENVIRONMENT='production'. Set "
+                "CITEVYN_LLM_PROVIDER to 'anthropic' or 'gemini' and "
+                "provide the matching API key."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _require_anthropic_api_key_in_production(self) -> "Settings":
+        if (
+            self.environment == "production"
+            and self.llm_provider == "anthropic"
+            and not self.anthropic_api_key
+        ):
+            raise ValueError(
+                "CITEVYN_ANTHROPIC_API_KEY must be set when "
+                "CITEVYN_LLM_PROVIDER='anthropic' and "
+                "CITEVYN_ENVIRONMENT='production'."
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _reject_default_admin_key_in_production(self) -> "Settings":
+        # ``local-admin-key`` is the dev default and is publicly known
+        # (it lives in the open-source repo). Reject it in production
+        # so a misconfigured deploy cannot accept it as the admin
+        # bearer. The compose ``prod`` profile already requires the
+        # var via ``${CITEVYN_ADMIN_API_KEY:?...}`` — this validator
+        # is the belt-and-braces guard for non-compose entry points
+        # (bare ``uv run uvicorn``, alembic, a one-off admin script).
+        if self.environment == "production" and self.admin_api_key == "local-admin-key":
+            raise ValueError(
+                "CITEVYN_ADMIN_API_KEY must be set to a strong secret when "
+                "CITEVYN_ENVIRONMENT='production'. The default value "
+                "'local-admin-key' is publicly known and is not allowed."
+            )
+        return self
 
 
 @lru_cache

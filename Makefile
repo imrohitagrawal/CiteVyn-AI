@@ -1,27 +1,64 @@
-# CiteVyn AI — repo-root developer entry points.
+# CiteVyn AI — repo-root developer + operator entry points.
 #
-# These targets wrap the cross-cutting commands needed to bring the
-# stack up, apply migrations, seed demo data, run the API, and tear
-# down. Every target is intentionally thin: the heavy lifting lives
-# in backend scripts, db/seed/*.py, and infra/docker/docker-compose.yml.
+# Developer workflow:
+#   make demo        — bring up the local stack (db + migrations + seed)
+#   make lint        — ruff on backend/app + tests
+#   make typecheck   — pyright on backend/app (strict)
+#   make test        — pytest (excludes the ``postgres`` marker)
+#   make smoke       — end-to-end curl against uvicorn on SQLite
+#   make clean       — drop caches
+#
+# Production workflow (operator):
+#   make deploy      — first-time cold start (see infra/docker/scripts/deploy.sh)
+#   make refresh     — rebuild + re-deploy without losing data
+#   make logs        — tail logs from api, worker, caddy
+#   make backup      — pg_dump to ./backups/
 #
 # Variables you can override on the command line:
-#   DB_URL  — SQLAlchemy URL (default points at the docker-compose db)
-#   API_KEY — bearer token for /v1/* requests
+#   DB_URL     — SQLAlchemy URL for local alembic (default: docker-compose db)
+#   VERSION    — image tag (default: dev); set from CI via git tag
+#   PROFILE    — docker compose profile (default: prod)
+#
+# Heavy lifting lives in backend/, db/, infra/docker/, and scripts/.
 
 SHELL := /bin/bash
 COMPOSE := docker compose -f infra/docker/docker-compose.yml
 DB_URL ?= postgresql+psycopg://citevyn:citevyn@localhost:5432/citevyn
 API_KEY ?= local-demo-key
-export CITEVYN_DATABASE_URL := $(DB_URL)
+VERSION ?= dev
+PROFILE ?= prod
+# NOTE: CITEVYN_DATABASE_URL is intentionally NOT exported globally
+# because the ``test`` target runs against an in-memory SQLite
+# (see ``backend/tests/conftest.py::_default_database_url``).
+# Targets that need a real Postgres (``migrate``, ``seed``, ``db-up``,
+# ``smoke``) set the variable on the command line they run.
+export VERSION
+export PROFILE
 
-.PHONY: help db-up db-down migrate seed demo stop smoke clean lint typecheck test ci
+.PHONY: help db-up db-down migrate seed demo stop smoke clean lint typecheck test ci \
+        build push deploy refresh logs backup restore
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-db-up: ## Start Postgres + Redis (Redis is provisioned but not used in MVP)
-	$(COMPOSE) up -d db
+# ─────────────────────────── Code quality ───────────────────────────
+lint: ## Run ruff over backend/app + tests (check only — fixes go in a separate commit)
+	cd backend && uv run ruff check .
+	cd backend && uv run ruff format --check .
+
+typecheck: ## Run pyright strict on backend/app
+	cd backend && uv run pyright
+
+test: ## Run the pytest suite (excludes the postgres marker; uses in-memory SQLite)
+	cd backend && uv sync --group dev
+	cd backend && env -u CITEVYN_DATABASE_URL uv run pytest -m "not postgres" -q
+
+test-pg: ## Run the postgres-marked tests (requires CITEVYN_PG_TEST_URL)
+	cd backend && uv run pytest -m postgres -q
+
+# ─────────────────────────── Local development ───────────────────────────
+db-up: ## Start Postgres + Redis via docker compose (no app containers)
+	$(COMPOSE) up -d db redis
 	@echo "Waiting for Postgres to accept connections…"
 	@for i in $$(seq 1 60); do \
 	  if docker exec citevyn-db pg_isready -U citevyn -d citevyn >/dev/null 2>&1; then \
@@ -31,38 +68,68 @@ db-up: ## Start Postgres + Redis (Redis is provisioned but not used in MVP)
 	done; \
 	echo "Postgres did not become ready in 60s" >&2; exit 1
 
-db-down: ## Stop the docker-compose stack
+db-down: ## Stop the docker-compose db stack (keeps volumes)
 	$(COMPOSE) down
 
-migrate: ## Apply Alembic migrations to head
-	uv run --project backend alembic -c db/alembic.ini upgrade head
+db-reset: ## Destroy and recreate the database volume (DESTRUCTIVE)
+	$(COMPOSE) down -v
+
+migrate: ## Apply Alembic migrations to head against DB_URL
+	CITEVYN_DATABASE_URL=$(DB_URL) uv run --project backend alembic -c db/alembic.ini upgrade head
 
 seed: ## Seed demo users + catalog (idempotent)
-	uv run --project backend python -m db.seed.seed_users
-	uv run --project backend python -m db.seed.seed_catalog
+	CITEVYN_DATABASE_URL=$(DB_URL) uv run --project backend python -m db.seed.seed_users
+	CITEVYN_DATABASE_URL=$(DB_URL) uv run --project backend python -m db.seed.seed_catalog
 
 demo: db-up migrate seed ## Bring up db, migrate, seed (one-shot)
 	@echo "Demo stack is up. Run 'make stop' to tear down."
 
 stop: db-down ## Tear the demo stack down
 
-smoke: ## Run end-to-end smoke (db-up + migrate + seed + uvicorn + curl + stop)
+smoke: ## End-to-end smoke (db-up + migrate + seed + uvicorn + curl + stop)
 	bash scripts/smoke.sh
 
-clean: ## Remove __pycache__ + .pytest_cache + .ruff_cache + .smoke-* artefacts
+clean: ## Remove __pycache__ + .pytest_cache + .ruff_cache + smoke artefacts
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	rm -rf .pytest_cache .ruff_cache .smoke-uvicorn.log .smoke-uvicorn.pid .smoke-last-response.json
 
-# ─────────────────────────── Code quality (used by make ci and the pr-quality workflow) ───────────────────────────
-lint: ## Run ruff on backend/
-	cd backend && uv run ruff check .
+# ─────────────────────────── Production build ───────────────────────────
+build: ## Build the api + worker images (VERSION=tag to label)
+	$(COMPOSE) --profile $(PROFILE) build --pull
 
-typecheck: ## Run pyright strict on backend/
-	cd backend && uv run pyright
+push: ## Push the api + worker images to the configured registry
+	$(COMPOSE) --profile $(PROFILE) push
 
-test: ## Run the pytest suite (excludes postgres-marked tests; uses in-memory SQLite)
-	cd backend && uv sync --group dev
-	cd backend && env -u CITEVYN_DATABASE_URL uv run pytest -m "not postgres" -q
+# ─────────────────────────── Production deploy ───────────────────────────
+deploy: ## First-time / cold-start deploy (run from infra/docker/.env host)
+	./infra/docker/scripts/deploy.sh
 
-ci: lint typecheck test ## Run the deterministic CI gate used by .github/workflows/pr-quality.yml
+refresh: ## Rebuild + re-deploy in place (no data loss)
+	./infra/docker/scripts/refresh.sh
+
+logs: ## Tail logs from api, worker, caddy
+	$(COMPOSE) --profile $(PROFILE) logs -f --tail=100 api worker caddy
+
+ps: ## Show running containers (prod profile)
+	$(COMPOSE) --profile $(PROFILE) ps
+
+backup: ## Dump the live database to ./backups/
+	./infra/docker/scripts/backup.sh
+
+restore: ## Restore a pg_dump file (usage: make restore FILE=path)
+	@if [[ -z "$(FILE)" ]]; then echo "usage: make restore FILE=path/to/citevyn-*.dump" >&2; exit 2; fi
+	@if [[ ! -f "$(FILE)" ]]; then echo "error: $(FILE) not found" >&2; exit 1; fi
+	@echo "Restoring $(FILE) into the live database…"
+	@docker compose --profile backup run --rm \
+		-e PGPASSWORD=$$POSTGRES_PASSWORD \
+		backup sh -c "pg_restore --clean --if-exists --no-owner --no-privileges \
+			-h db -U citevyn -d citevyn < /dev/stdin" < $(FILE)
+
+# ─────────────────────────── Convenience composites ───────────────────────────
+# ``make ci`` is the deterministic gate the pr-quality workflow uses
+# (lint + typecheck + test, hermetic SQLite). ``make verify`` is the
+# developer-side equivalent with the same dependencies.
+ci: lint typecheck test ## Deterministic CI gate used by .github/workflows/pr-quality.yml
 	@echo "make ci: all checks passed"
+
+verify: lint typecheck test ## Run the full pre-merge gate locally

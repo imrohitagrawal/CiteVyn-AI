@@ -1,6 +1,6 @@
 [project]
 name = "citevyn-backend"
-version = "0.1.0"
+version = "0.9.0"
 description = "CiteVyn AI backend foundation"
 readme = "README.md"
 requires-python = ">=3.12,<3.14"
@@ -12,12 +12,14 @@ dependencies = [
     "psycopg[binary]>=3.2.0",
     "pydantic>=2.8.0",
     "pydantic-settings>=2.6.0",
+    "redis>=5.0.0",
     "sqlalchemy[asyncio]>=2.0.30",
     "uvicorn[standard]>=0.32.0",
 ]
 
 [dependency-groups]
 dev = [
+    "fakeredis[lua]>=2.20.0",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
     "ruff>=0.8.0",

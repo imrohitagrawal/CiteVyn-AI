@@ -40,7 +40,7 @@ from app.cache.factory import build_answer_cache_store
 from app.core.config import Settings
 from app.guardrails.domain import Domain, classify_domain, is_unsupported
 from app.llm.errors import LLMUnavailable
-from app.llm.factory import build_llm_client
+from app.llm.factory import get_llm_client
 from app.llm.protocol import LLMClient
 from app.llm.validation import validate_citations
 from app.models import (
@@ -189,7 +189,7 @@ class Orchestrator:
     ) -> None:
         self._settings = settings
         self._session = session
-        self._llm = llm or build_llm_client(settings)
+        self._llm = llm or get_llm_client(settings)
         self._retriever = retriever or _default_retriever(session)
         self._cache = cache or build_answer_cache_store(settings, session)
         self._generator = AnswerGenerator(

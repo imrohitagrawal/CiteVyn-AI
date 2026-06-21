@@ -3,6 +3,12 @@
 The tests are pure unit tests (no FastAPI, no DB) so they cover the
 sliding-window logic in isolation. Route-level integration with
 :class:`enforce_rate_limit` is exercised by the route tests.
+
+The :class:`RateLimiter` now takes ``demo_user_per_window`` and
+``admin_per_window`` (from :class:`Settings.rate_limit_*_per_hour`),
+so the fixture wires small values that fit the eviction test. The
+``LIMIT`` constant is the value the fixture uses for the demo-user
+cap; tests assert against that constant instead of an import.
 """
 
 from __future__ import annotations
@@ -11,16 +17,22 @@ import pytest
 from fastapi import HTTPException
 
 from app.core.errors import APIErrorCode
-from app.core.rate_limit import (
-    DEFAULT_LIMIT_DEMO_USER,
-    RateLimiter,
-)
+from app.core.rate_limit import RateLimiter
+
+# Small cap so the overflow tests stay fast and the concurrent-burst
+# test doesn't spawn 60 coroutines just to fill the bucket.
+LIMIT: int = 5
+ADMIN_LIMIT: int = 10
 
 
 @pytest.fixture
 def limiter() -> RateLimiter:
     """A 1-second window so eviction is testable in real time."""
-    return RateLimiter(window_seconds=1)
+    return RateLimiter(
+        window_seconds=1,
+        demo_user_per_window=LIMIT,
+        admin_per_window=ADMIN_LIMIT,
+    )
 
 
 async def test_first_hit_is_allowed(limiter: RateLimiter) -> None:
@@ -30,14 +42,14 @@ async def test_first_hit_is_allowed(limiter: RateLimiter) -> None:
 
 async def test_within_window_hits_are_allowed(limiter: RateLimiter) -> None:
     """A few hits within the window are all allowed."""
-    for _ in range(5):
+    for _ in range(3):
         await limiter.check(user_id="u1", role="demo_user")
 
 
 async def test_overflow_raises_envelope(limiter: RateLimiter) -> None:
-    """The ``demo_user`` limit (30) is enforced; the 31st call raises."""
+    """The ``demo_user`` limit is enforced; the next call raises 429."""
     user = "u1"
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    for _ in range(LIMIT):
         await limiter.check(user_id=user, role="demo_user")
     with pytest.raises(Exception) as exc_info:
         await limiter.check(user_id=user, role="demo_user")
@@ -49,12 +61,13 @@ async def test_overflow_raises_envelope(limiter: RateLimiter) -> None:
 async def test_admin_limit_is_higher(limiter: RateLimiter) -> None:
     """An admin can exceed the demo-user limit up to the admin limit."""
     user = "u_admin"
-    # Fill to demo_user limit; the next call should still be allowed because the
-    # user's role is "admin".
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    # Fill to the demo-user limit.
+    for _ in range(LIMIT):
         await limiter.check(user_id=user, role="admin")
-    # One more — the bucket is now at the demo-user cap, which is < admin limit.
-    await limiter.check(user_id=user, role="admin")
+    # More calls still allowed because role is "admin" and admin
+    # cap is higher.
+    for _ in range(ADMIN_LIMIT - LIMIT):
+        await limiter.check(user_id=user, role="admin")
 
 
 async def test_eviction_after_window_expires(limiter: RateLimiter) -> None:
@@ -63,7 +76,7 @@ async def test_eviction_after_window_expires(limiter: RateLimiter) -> None:
 
     user = "u1"
     # Fill the bucket to the limit.
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    for _ in range(LIMIT):
         await limiter.check(user_id=user, role="demo_user")
     with pytest.raises(HTTPException) as exc_info:
         await limiter.check(user_id=user, role="demo_user")
@@ -76,7 +89,7 @@ async def test_eviction_after_window_expires(limiter: RateLimiter) -> None:
 
 async def test_different_users_have_separate_buckets(limiter: RateLimiter) -> None:
     """User A's overflow does not affect user B's bucket."""
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    for _ in range(LIMIT):
         await limiter.check(user_id="alice", role="demo_user")
     with pytest.raises(HTTPException) as exc_info:
         await limiter.check(user_id="alice", role="demo_user")
@@ -93,7 +106,7 @@ async def test_overflow_does_not_record_hit(limiter: RateLimiter) -> None:
     user can send a legitimate one.
     """
     user = "u1"
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    for _ in range(LIMIT):
         await limiter.check(user_id=user, role="demo_user")
     # Several overflowed calls.
     for _ in range(5):
@@ -102,13 +115,13 @@ async def test_overflow_does_not_record_hit(limiter: RateLimiter) -> None:
         assert exc_info.value.status_code == 429
     # The bucket still has exactly the original count, so eviction
     # after the window elapses leaves a fresh bucket.
-    assert len(limiter._buckets[user]) == DEFAULT_LIMIT_DEMO_USER  # noqa: SLF001 (test introspection)
+    assert len(limiter._buckets[user]) == LIMIT  # noqa: SLF001 (test introspection)
 
 
 async def test_unknown_role_falls_back_to_demo_user(limiter: RateLimiter) -> None:
     """An unknown role is treated as the demo-user limit (fail-closed)."""
     user = "u1"
-    for _ in range(DEFAULT_LIMIT_DEMO_USER):
+    for _ in range(LIMIT):
         await limiter.check(user_id=user, role="mystery_role")
     with pytest.raises(HTTPException) as exc_info:
         await limiter.check(user_id=user, role="mystery_role")
@@ -118,13 +131,41 @@ async def test_unknown_role_falls_back_to_demo_user(limiter: RateLimiter) -> Non
 def test_zero_window_seconds_rejected() -> None:
     """A non-positive window is invalid — sliding windows need a width."""
     with pytest.raises(ValueError):
-        RateLimiter(window_seconds=0)
+        RateLimiter(
+            window_seconds=0,
+            demo_user_per_window=LIMIT,
+            admin_per_window=ADMIN_LIMIT,
+        )
 
 
 def test_negative_window_seconds_rejected() -> None:
     """A negative window is invalid for the same reason as zero."""
     with pytest.raises(ValueError):
-        RateLimiter(window_seconds=-1)
+        RateLimiter(
+            window_seconds=-1,
+            demo_user_per_window=LIMIT,
+            admin_per_window=ADMIN_LIMIT,
+        )
+
+
+def test_zero_demo_user_per_window_rejected() -> None:
+    """A zero per-window limit would disable the limiter — reject it."""
+    with pytest.raises(ValueError):
+        RateLimiter(
+            window_seconds=60,
+            demo_user_per_window=0,
+            admin_per_window=ADMIN_LIMIT,
+        )
+
+
+def test_zero_admin_per_window_rejected() -> None:
+    """Same as above, for the admin cap."""
+    with pytest.raises(ValueError):
+        RateLimiter(
+            window_seconds=60,
+            demo_user_per_window=LIMIT,
+            admin_per_window=0,
+        )
 
 
 async def test_concurrent_hits_do_not_burst_the_limit() -> None:
@@ -137,8 +178,13 @@ async def test_concurrent_hits_do_not_burst_the_limit() -> None:
     """
     import asyncio
 
-    limit = DEFAULT_LIMIT_DEMO_USER
-    limiter = RateLimiter(window_seconds=60)
+    # Use a longer window so the burst finishes well before the
+    # 1-second fixture window expires.
+    limiter = RateLimiter(
+        window_seconds=60,
+        demo_user_per_window=LIMIT,
+        admin_per_window=ADMIN_LIMIT,
+    )
 
     async def hit() -> bool:
         try:
@@ -147,8 +193,8 @@ async def test_concurrent_hits_do_not_burst_the_limit() -> None:
         except Exception:
             return False
 
-    results = await asyncio.gather(*(hit() for _ in range(2 * limit)))
+    results = await asyncio.gather(*(hit() for _ in range(2 * LIMIT)))
     accepted = sum(1 for ok in results if ok)
     rejected = sum(1 for ok in results if not ok)
-    assert accepted == limit, f"expected exactly {limit} accepted, got {accepted}"
-    assert rejected == limit, f"expected exactly {limit} rejected, got {rejected}"
+    assert accepted == LIMIT, f"expected exactly {LIMIT} accepted, got {accepted}"
+    assert rejected == LIMIT, f"expected exactly {LIMIT} rejected, got {rejected}"

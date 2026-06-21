@@ -34,9 +34,7 @@ async def test_exact_lookup_returns_match_in_active_index(session) -> None:
     from app.models.index_versions import IndexVersion
 
     active = (
-        await session.execute(
-            select(IndexVersion).where(IndexVersion.status == IndexStatus.active)
-        )
+        await session.execute(select(IndexVersion).where(IndexVersion.status == IndexStatus.active))
     ).scalar_one()
     # The seed places --model under codex, not claude_api, so a
     # scoped product_area query is required.
@@ -65,9 +63,7 @@ async def test_exact_lookup_uses_active_sentinel(session) -> None:
     from app.models.index_versions import IndexVersion
 
     active = (
-        await session.execute(
-            select(IndexVersion).where(IndexVersion.status == IndexStatus.active)
-        )
+        await session.execute(select(IndexVersion).where(IndexVersion.status == IndexStatus.active))
     ).scalar_one()
 
     hits = await exact_lookup(
@@ -97,9 +93,7 @@ async def test_exact_lookup_scoped_to_product_area(session) -> None:
     from app.models.index_versions import IndexVersion
 
     active = (
-        await session.execute(
-            select(IndexVersion).where(IndexVersion.status == IndexStatus.active)
-        )
+        await session.execute(select(IndexVersion).where(IndexVersion.status == IndexStatus.active))
     ).scalar_one()
     now = datetime.now(UTC)
     doc = Document(
@@ -183,9 +177,7 @@ async def test_exact_lookup_returns_empty_on_unknown_term(session) -> None:
 async def test_exact_lookup_returns_empty_on_empty_term(session) -> None:
     """Empty ``term`` short-circuits to an empty list (defensive)."""
     await _seed(session)
-    hits = await exact_lookup(
-        session, term="", product_area="codex", index_version="active"
-    )
+    hits = await exact_lookup(session, term="", product_area="codex", index_version="active")
     assert hits == []
 
 
@@ -195,9 +187,7 @@ async def test_exact_lookup_returns_empty_on_empty_product_area(
 ) -> None:
     """Empty ``product_area`` short-circuits — global search is not supported."""
     await _seed(session)
-    hits = await exact_lookup(
-        session, term="--model", product_area="", index_version="active"
-    )
+    hits = await exact_lookup(session, term="--model", product_area="", index_version="active")
     assert hits == []
 
 
@@ -216,9 +206,7 @@ async def test_exact_lookup_clamps_limit_to_max_results(session) -> None:
     from app.models.index_versions import IndexVersion
 
     active = (
-        await session.execute(
-            select(IndexVersion).where(IndexVersion.status == IndexStatus.active)
-        )
+        await session.execute(select(IndexVersion).where(IndexVersion.status == IndexStatus.active))
     ).scalar_one()
     now = datetime.now(UTC)
     for i in range(30):
@@ -259,9 +247,7 @@ async def test_exact_lookup_clamps_limit_to_max_results(session) -> None:
         )
     await session.commit()
 
-    hits = await exact_lookup(
-        session, term="--model", product_area="codex", limit=1000
-    )
+    hits = await exact_lookup(session, term="--model", product_area="codex", limit=1000)
     assert len(hits) == MAX_RESULTS
 
 
@@ -379,9 +365,7 @@ async def test_exact_lookup_pinned_version_skips_active_filter(session) -> None:
     # Confirm the active row is "v1-..." (seed value), and add a
     # candidate (not active) version with its own term.
     active = (
-        await session.execute(
-            select(IndexVersion).where(IndexVersion.status == IndexStatus.active)
-        )
+        await session.execute(select(IndexVersion).where(IndexVersion.status == IndexStatus.active))
     ).scalar_one()
     assert active.status is IndexStatus.active
 

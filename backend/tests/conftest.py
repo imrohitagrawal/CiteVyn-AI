@@ -57,8 +57,31 @@ def clear_settings_cache() -> Generator[None, None, None]:
 
 
 @pytest.fixture
-def client() -> TestClient:
-    return TestClient(create_app())
+def client() -> Generator[TestClient, None, None]:
+    """Yield a :class:`TestClient` whose lifespan has fully started.
+
+    The :func:`_lifespan` body runs :func:`validate_llm_provider`
+    and the Settings model_validators on app startup. We enter
+    the TestClient as a context manager so those hooks fire and
+    a future test that exercises the prod path is covered.
+
+    The cached async engine is reset before the app is built so a
+    test that previously used the ``session`` fixture (with a
+    per-test temp-file engine) doesn't leak a closed engine into
+    the app's first request. We also reset the rate-limiter and
+    redis-client caches — same rationale: a previous test may
+    have left a closed fakeredis or in-process limiter behind.
+    """
+    db_module.reset_engine()
+    # Reset process-wide limiter + redis client caches so a
+    # previous test's closed handle doesn't leak into this app.
+    import app.core.rate_limit as rate_limit
+    import app.core.redis_client as redis_client
+
+    rate_limit.reset_limiter()
+    redis_client.reset_redis_client()
+    with TestClient(create_app()) as app:
+        yield app
 
 
 # ---------------------------------------------------------------------------

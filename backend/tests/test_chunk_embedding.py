@@ -97,9 +97,7 @@ async def test_chunk_embedding_round_trips(session, active_index_version) -> Non
 
 
 @pytest.mark.asyncio
-async def test_chunk_embedding_defaults_to_none(
-    session, active_index_version
-) -> None:
+async def test_chunk_embedding_defaults_to_none(session, active_index_version) -> None:
     """A chunk without an embedding has ``embedding is None``."""
     document_id = await _first_document_id(session)
     chunk = _make_chunk(document_id=document_id, embedding=None)
@@ -111,9 +109,7 @@ async def test_chunk_embedding_defaults_to_none(
 
 
 @pytest.mark.asyncio
-async def test_chunk_embedding_persists_large_vector(
-    session, active_index_version
-) -> None:
+async def test_chunk_embedding_persists_large_vector(session, active_index_version) -> None:
     """A 1536-dim vector (the dim the Anthropic embedder targets) round-trips."""
     document_id = await _first_document_id(session)
     embedding = [round(i * 0.0006510416666666667, 10) for i in range(1536)]
@@ -211,9 +207,7 @@ def test_pickled_embedding_uses_large_binary_impl() -> None:
     """The TypeDecorator's impl is LargeBinary (BLOB/bytea)."""
     from sqlalchemy import LargeBinary
 
-    assert PickledEmbedding.impl is LargeBinary or issubclass(
-        PickledEmbedding.impl, LargeBinary
-    )
+    assert PickledEmbedding.impl is LargeBinary or issubclass(PickledEmbedding.impl, LargeBinary)
 
 
 def test_pickled_embedding_rejects_numpy_array() -> None:

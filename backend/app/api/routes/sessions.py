@@ -35,7 +35,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, get_settings
 from app.core.db import get_session
 from app.core.errors import APIErrorCode, error_response
-from app.core.security import require_demo_api_key
+from app.core.rate_limit import rate_limited_demo
 from app.models import Message, Session, User, UserRole
 
 router = APIRouter(prefix="/v1/sessions", tags=["sessions"])
@@ -160,7 +160,7 @@ async def _ensure_user(session: AsyncSession, *, user_id: str) -> None:
 async def create_session(
     request: Request,
     response: Response,
-    user_id: Annotated[str, Depends(require_demo_api_key)],
+    user_id: Annotated[str, Depends(rate_limited_demo)],
     settings: Annotated[Settings, Depends(get_settings)],
     db: Annotated[AsyncSession, Depends(get_session)],
     body: CreateSessionRequest,
@@ -224,7 +224,7 @@ async def create_session(
 async def close_session(
     request: Request,
     session_id: Annotated[uuid.UUID, Path()],
-    user_id: Annotated[str, Depends(require_demo_api_key)],
+    user_id: Annotated[str, Depends(rate_limited_demo)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
     """Close a session by setting its ``expires_at`` to now."""
@@ -253,7 +253,7 @@ async def close_session(
 async def get_session_route(
     request: Request,
     session_id: Annotated[uuid.UUID, Path()],
-    user_id: Annotated[str, Depends(require_demo_api_key)],
+    user_id: Annotated[str, Depends(rate_limited_demo)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, Any]:
     """Return the session metadata plus the ordered messages list."""
