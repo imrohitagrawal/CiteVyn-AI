@@ -59,13 +59,30 @@ docker compose \
     upgrade head
 
 echo "==> seeding the initial admin user (idempotent)"
+# The seed module lives at ``db/seed/seed_users.py`` (not under
+# ``app/``); the api image has ``db/`` mounted at ``/db`` and
+# ``PYTHONPATH=/db`` so ``python -m db.seed.seed_users`` resolves.
+# ``seed_users.seed()`` is idempotent: existing rows are left
+# untouched, so re-running this script on a populated database
+# is a no-op.
 docker compose \
     --profile prod \
     run \
     --rm \
     --no-deps \
     api \
-    python -m app.db.seed.seed_users
+    python -m db.seed.seed_users
+
+echo "==> verifying the admin row landed"
+# Sanity-check that the seed actually wrote a row (the script
+# exits non-zero if the seed module's commit failed silently).
+ADMIN_COUNT=$(docker compose exec -T db psql -U citevyn -d citevyn -tAc \
+    "SELECT count(*) FROM users WHERE user_id = 'admin';")
+if [[ "${ADMIN_COUNT}" != "1" ]]; then
+    echo "error: seed step did not create the admin user (count=${ADMIN_COUNT})" >&2
+    echo "       inspect: docker compose exec db psql -U citevyn -d citevyn -c '\\dt'" >&2
+    exit 1
+fi
 
 echo "==> bringing up api + worker + caddy"
 docker compose --profile prod up -d

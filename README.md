@@ -20,7 +20,7 @@ treated as a feature, not a failure.
 | TLS termination     | Production    | Caddy v2 (auto-issued Let's Encrypt)                        |
 | Frontend            | In development| React + Vite, served separately                             |
 | Test coverage       | 361 passed    | pytest + httpx AsyncClient; postgres-marker opt-in          |
-| CI                  | 4 jobs        | lint, typecheck, tests (sqlite + postgres), demo-readiness  |
+| CI                  | 2 jobs        | pytest + lint (SQLite), alembic + postgres integration      |
 
 ---
 
@@ -314,7 +314,9 @@ on every PR:
 | `tests`                 | `pytest -m "not postgres"` (sqlite)                  |
 | `postgres-migrations`   | Boots a real Postgres, runs alembic upgrade head,    |
 |                         | then runs the `postgres` marker tests                |
-| `demo-readiness`        | Boot the api + worker with stub LLM, hit /health     |
+| `quality-gate`          | Reusable workflow from the `.github` meta-repo:     |
+|                         | ruff + pyright + pytest + bandit + gitleaks +        |
+|                         | semgrep + pip-audit. Runs on every PR.               |
 
 Releases are cut via the `.github/workflows/release.yml` workflow
 on version tags; see [§14 Release process](#14-release-process).

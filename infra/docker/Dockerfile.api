@@ -56,12 +56,12 @@ COPY backend/README.md ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-editable
 
-# Note: the alembic tree (``db/``) is NOT copied into the api
-# runtime image. Migrations are a deploy-time step run by
-# ``deploy.sh`` / ``refresh.sh`` from the host venv (or a one-shot
-# init container). The api process never reads ``/db`` at runtime,
-# so shipping the migration history in the api image is wasted bytes
-# and a wider attack surface on every release.
+# Copy the alembic tree + seed modules into a /db prefix so the
+# deploy / refresh scripts can ``docker compose run api alembic
+# --config /db/alembic.ini ...`` from inside the running image.
+# The /db prefix keeps the migration tooling out of the app's
+# import path (alembic doesn't auto-discover the layout).
+COPY db /db
 
 # ─────────────────────────── Stage 2: runtime ──────────────────────────────
 FROM python:3.12-slim-bookworm AS runtime
@@ -71,7 +71,8 @@ ENV VERSION=${VERSION} \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
-    PATH="/app/.venv/bin:${PATH}"
+    PATH="/app/.venv/bin:${PATH}" \
+    PYTHONPATH="/db"
 
 # Create a non-root user with a fixed UID. ``appuser`` owns /app so
 # the process can write logs / cache without root.
@@ -87,21 +88,22 @@ COPY --from=builder --chown=appuser:appuser /build/backend/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /build/backend/app    /app/app
 COPY --from=builder --chown=appuser:appuser /build/backend/README.md /app/README.md
 
-# Curl is needed for HEALTHCHECK against the local uvicorn listener.
-# python:3.12-slim-bookworm already ships libpython3 + ssl.
-USER root
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
-    && rm -rf /var/lib/apt/lists/*
+# Alembic tree + seed modules. The api process never reads /db at
+# request time — these are only consulted by the deploy/refresh
+# scripts via ``docker compose run api alembic ...`` and ``python
+# -m app.db.seed.seed_users``.
+COPY --from=builder --chown=appuser:appuser /build/db /db
 
+# No curl: use python's urllib for the healthcheck (the
+# python:3.12-slim-bookworm base ships urllib + ssl).
 USER appuser
 
 EXPOSE 8000
 
 # uvicorn: 1 worker in dev / preview, scale via ``docker compose
 # scale api=N`` (production should pin workers to CPU count).
-HEALTHCHECK --interval=10s --timeout=3s --start-period=15s --retries=5 \
-    CMD curl --fail --silent http://localhost:8000/health || exit 1
+HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=5 \
+    CMD python -c "import urllib.request, sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=2).status == 200 else 1)"
 
 # Module path matches the package layout created by uv (app is at
 # /app/app, the venv is on PATH so uvicorn imports cleanly).

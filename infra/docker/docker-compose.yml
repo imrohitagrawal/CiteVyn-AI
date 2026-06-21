@@ -14,6 +14,14 @@
 # This file is the canonical infra entry point — both ``make
 # dev-up`` and ``make deploy`` invoke it. CI does not use it; tests
 # run against an in-memory SQLite engine.
+#
+# Secrets handling: every secret (POSTGRES_PASSWORD, API keys,
+# ACME email) is sourced from the host-side ``infra/docker/.env``
+# via ``env_file``. We deliberately avoid interpolating secrets
+# into the inline ``environment:`` map — that leaks them into
+# ``docker compose config`` output and the ``Cmd`` field of
+# ``/proc/1/environ`` on every container. Use ``env_file:`` for
+# anything sensitive.
 # ────────────────────────────────────────────────────────────────────────────
 
 x-logging: &default-logging
@@ -25,13 +33,20 @@ x-logging: &default-logging
 x-app-defaults: &app-defaults
   restart: unless-stopped
   logging: *default-logging
+  env_file:
+    # Same env file for api + worker; secret values live in
+    # infra/docker/.env which is gitignored. The file also lists
+    # non-secret tunables (rate-limit windows, log level) that
+    # every app container needs.
+    - .env
   environment: &app-env
-    # Connection strings target the docker-network hostnames
-    # (``db``, ``redis``) — they are NOT reachable from outside
-    # the compose network, so the env file ships docker-internal
-    # values. The host-side overrides live in .env.example (used
-    # by ``make dev`` for local uvicorn).
-    CITEVYN_DATABASE_URL: postgresql+psycopg://citevyn:${POSTGRES_PASSWORD}@db:5432/citevyn
+    # Non-secret overrides that differ from the host-side defaults
+    # in .env.example. The Docker network hostnames (``db``,
+    # ``redis``) are NOT reachable from outside the compose
+    # network, so the connection strings here are the
+    # docker-internal variants. The host-side overrides live in
+    # .env.example (used by ``make dev`` for local uvicorn).
+    CITEVYN_DATABASE_URL: postgresql+psycopg://citevyn:citevyn@db:5432/citevyn
     CITEVYN_REDIS_URL: redis://redis:6379/0
     CITEVYN_ENVIRONMENT: production
     CITEVYN_RATE_LIMIT_ENABLED: "true"
@@ -56,10 +71,8 @@ services:
     environment:
       POSTGRES_DB: citevyn
       POSTGRES_USER: citevyn
-      # POSTGRES_PASSWORD is sourced from the host-side .env
-      # (NEVER checked in). The local-dev fallback is the same
-      # username/password the README documents.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    env_file:
+      - .env
     volumes:
       - citevyn_pgdata:/var/lib/postgresql/data
       - ./initdb.d:/docker-entrypoint-initdb.d:ro
@@ -107,13 +120,22 @@ services:
         condition: service_healthy
     environment:
       <<: *app-env
-      # On the host, the API only listens on the docker network
-      # — Caddy is the public entry point.
+      # Per-app overrides that don't belong in the shared
+      # env_file (the worker uses stub LLM in CI but the api
+      # needs the real provider in prod).
       CITEVYN_LLM_PROVIDER: ${CITEVYN_LLM_PROVIDER:-stub}
-      CITEVYN_LLM_API_KEY: ${CITEVYN_LLM_API_KEY:-}
       CITEVYN_LLM_MODEL: ${CITEVYN_LLM_MODEL:-}
-      CITEVYN_ADMIN_API_KEY: ${CITEVYN_ADMIN_API_KEY:?CITEVYN_ADMIN_API_KEY must be set in .env}
     # No host port — Caddy proxies in via the docker network.
+    healthcheck:
+      # ``app.main:app`` exposes ``GET /health`` which does not
+      # touch the database or the LLM. The default uvicorn
+      # port is 8000; this matches the Caddyfile reverse_proxy
+      # block.
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=2).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   worker:
     profiles: ["prod"]
@@ -133,8 +155,18 @@ services:
     environment:
       <<: *app-env
       CITEVYN_LLM_PROVIDER: ${CITEVYN_LLM_PROVIDER:-stub}
-      CITEVYN_LLM_API_KEY: ${CITEVYN_LLM_API_KEY:-}
       CITEVYN_LLM_MODEL: ${CITEVYN_LLM_MODEL:-}
+    healthcheck:
+      # The worker is headless (no TCP port). The orchestrator
+      # signals liveness via the ingestion_jobs table; from the
+      # container's POV, "alive" means the citevyn-worker
+      # process is running. pgrep returns 0 when a match is
+      # found, 1 when not.
+      test: ["CMD-SHELL", "pgrep -f citevyn-worker || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   caddy:
     profiles: ["prod"]
@@ -142,6 +174,19 @@ services:
     container_name: citevyn-caddy
     restart: unless-stopped
     logging: *default-logging
+    env_file:
+      # ACME email + CA override (staging for smoke, prod for
+      # real). The compose substitution ``${VAR:-default}`` is
+      # not safe for the email field (no default), so we list
+      # it as required via the env_file.
+      - .env
+    environment:
+      # ACME email is required for Let's Encrypt to notify the
+      # operator about expiring certs. If unset, Caddy uses an
+      # empty address and the LE registration will fail at the
+      # first request.
+      CITEVYN_ACME_EMAIL: ${CITEVYN_ACME_EMAIL:?CITEVYN_ACME_EMAIL must be set in .env}
+      CITEVYN_ACME_CA: ${CITEVYN_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
     ports:
       - "80:80"
       - "443:443"
@@ -150,7 +195,11 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - api
+      api:
+        # Wait for the api's /health probe to pass, not just for
+        # the container to start. Without this, Caddy races
+        # uvicorn on first boot and returns 502s for 30s+.
+        condition: service_healthy
 
   # ──────────────── One-shot backup (backup profile) ────────────────
   backup:
@@ -159,8 +208,8 @@ services:
     container_name: citevyn-backup
     logging: *default-logging
     restart: "no"
-    environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+    env_file:
+      - .env
     volumes:
       - ./backups:/backups
     command: >

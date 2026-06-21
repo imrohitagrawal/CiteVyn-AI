@@ -55,10 +55,28 @@ updates:
       time: "08:00"
       timezone: "America/Los_Angeles"
     open-pull-requests-limit: 3
-    # Only the FROM lines we maintain are tracked. The base
-    # images for our api/worker are pinned to minor versions
-    # (e.g. python:3.12-slim-bookworm, caddy:2-alpine,
-    # pgvector/pgvector:pg16) so patch bumps auto-roll.
+    # Tracks ``FROM`` lines in ``Dockerfile.api`` and
+    # ``Dockerfile.worker`` (e.g. python:3.12-slim-bookworm,
+    # ghcr.io/astral-sh/uv:python3.12-bookworm-slim). The
+    # ``docker-compose`` ecosystem below separately covers
+    # the ``image:`` refs in the compose file.
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # ──────────── Compose service images ────────────
+  - package-ecosystem: "docker-compose"
+    directory: "/infra/docker"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "08:00"
+      timezone: "America/Los_Angeles"
+    open-pull-requests-limit: 3
+    # Tracks ``image:`` references in
+    # ``infra/docker/docker-compose.yml`` (pgvector, redis,
+    # caddy, postgres). Without this entry the service
+    # images would silently rot.
     labels:
       - "dependencies"
       - "docker"

@@ -13,6 +13,15 @@
 # markers on the public envelope. uvicorn is launched with
 # ``--forwarded-allow-ips=*`` so it accepts them from this container.
 #
+# ACME operational note: HTTP-01 challenges require port 80 to be
+# reachable from the public internet. Behind a CDN or load
+# balancer that terminates :443 (Cloudflare, AWS ALB with ACM),
+# HTTP-01 will fail; use DNS-01 or terminate TLS at the CDN and
+# proxy plain HTTP from the CDN to the Caddy listener. The
+# ``caddy`` service in docker-compose.yml binds :80 directly to
+# the host — operators fronting the host with a CDN must rewrite
+# the ports mapping.
+#
 # Security headers (CWE / OWASP recommended baseline):
 #   * Strict-Transport-Security — force HTTPS for 1 year, include
 #     subdomains.
@@ -28,13 +37,19 @@
 
 {
     # Global options
-    auto_https off
     admin off
     log {
         output stdout
         format console
         level INFO
     }
+    # ACME account — required for Let's Encrypt to notify the
+    # operator about expiring certs. ``acme_ca`` defaults to
+    # Let's Encrypt's production endpoint; override to the
+    # staging endpoint for a smoke test before pointing DNS at
+    # the host.
+    email {$CITEVYN_ACME_EMAIL}
+    acme_ca {$CITEVYN_ACME_CA:https://acme-v02.api.letsencrypt.org/directory}
 }
 
 # Listener for the ACME HTTP-01 challenge and explicit health probes.
@@ -80,8 +95,11 @@
     }
 
     # Compress JSON responses; the 1KB threshold keeps tiny 200s
-    # uncompressed to avoid the CPU overhead.
-    encode zstd gzip
+    # uncompressed to avoid the CPU overhead. ``zstd`` is not
+    # available in the standard ``caddy:2-alpine`` image (it
+    # requires a custom build with the ``caddy-zstd`` module);
+    # we use gzip only.
+    encode gzip 1
 
     # Liveness / readiness pass-through. The API's /health endpoint
     # is a pure DB-free probe and is safe to hit at high frequency.
@@ -98,12 +116,15 @@
         header_up X-Real-IP {remote_host}
         header_up X-Forwarded-For {remote_host}
         header_up X-Forwarded-Proto {scheme}
-        # Time-out: a long-poll on /v1/ask should not be 30s by
-        # default. Generous defaults; the API can override.
+        # Generous timeouts — the /v1/ask endpoint can take 30s+
+        # when the LLM provider is slow to respond. Streaming
+        # responses are even longer; the API's own timeout (set
+        # via the CITEVYN_ANTHROPIC_TIMEOUT_SECONDS env var) is
+        # the authoritative upper bound.
         transport http {
             dial_timeout 10s
-            response_header_timeout 60s
-            read_timeout 60s
+            response_header_timeout 300s
+            read_timeout 300s
         }
     }
 }

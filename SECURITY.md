@@ -5,7 +5,7 @@
 If you discover a security vulnerability in CiteVyn, **please do
 not open a public GitHub issue.** Instead, report it privately via
 GitHub's "Report a vulnerability" feature on the
-[Security tab](../../security/advisories/new) of this repository.
+[Security tab](https://github.com/imrohitagrawal/CiteVyn-AI/security/advisories/new) of this repository.
 
 Please include:
 

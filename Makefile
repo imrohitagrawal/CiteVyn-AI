@@ -71,7 +71,12 @@ db-up: ## Start Postgres + Redis via docker compose (no app containers)
 db-down: ## Stop the docker-compose db stack (keeps volumes)
 	$(COMPOSE) down
 
-db-reset: ## Destroy and recreate the database volume (DESTRUCTIVE)
+db-reset: ## Destroy and recreate the database volume (DESTRUCTIVE; requires CONFIRM=yes)
+	@if [[ "${CONFIRM:-}" != "yes" ]]; then \
+	  echo "error: this drops the database volume (all data lost)" >&2; \
+	  echo "       re-run with: make db-reset CONFIRM=yes" >&2; \
+	  exit 2; \
+	fi
 	$(COMPOSE) down -v
 
 migrate: ## Apply Alembic migrations to head against DB_URL
@@ -119,9 +124,13 @@ backup: ## Dump the live database to ./backups/
 restore: ## Restore a pg_dump file (usage: make restore FILE=path)
 	@if [[ -z "$(FILE)" ]]; then echo "usage: make restore FILE=path/to/citevyn-*.dump" >&2; exit 2; fi
 	@if [[ ! -f "$(FILE)" ]]; then echo "error: $(FILE) not found" >&2; exit 1; fi
-	@echo "Restoring $(FILE) into the live database…"
-	@docker compose --profile backup run --rm \
-		-e PGPASSWORD=$$POSTGRES_PASSWORD \
+	# Source the env file so docker compose + the backup container
+	# can read POSTGRES_PASSWORD (the ``backup`` service has it
+	# in env_file, which docker compose requires to be present
+	# at run-time).
+	@if [[ ! -f infra/docker/.env ]]; then echo "error: infra/docker/.env not found; copy prod.env.example first" >&2; exit 1; fi
+	@set -a; . infra/docker/.env; set +a; \
+	docker compose --profile backup run --rm \
 		backup sh -c "pg_restore --clean --if-exists --no-owner --no-privileges \
 			-h db -U citevyn -d citevyn < /dev/stdin" < $(FILE)
 

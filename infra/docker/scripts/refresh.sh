@@ -35,11 +35,25 @@ VERSION="${VERSION:-dev}"
 export VERSION
 
 echo "==> refresh.sh: rebuilding images (VERSION=${VERSION})"
-docker compose \
-    --profile prod \
-    build \
-    --pull \
-    --no-cache
+# NOTE: do not pass ``--no-cache`` here. The uv builder stage
+# uses ``--mount=type=cache`` so the dependency layer is cached
+# across refreshes; ``--no-cache`` would invalidate that and
+# re-download every base image layer on every refresh, taking
+# minutes instead of seconds. Set ``REFRESH_NUKE=1`` if you need
+# to force a clean rebuild (e.g. after a base-image CVE bump).
+if [[ "${REFRESH_NUKE:-0}" == "1" ]]; then
+    echo "==> REFRESH_NUKE=1 set; forcing a clean rebuild"
+    docker compose \
+        --profile prod \
+        build \
+        --pull \
+        --no-cache
+else
+    docker compose \
+        --profile prod \
+        build \
+        --pull
+fi
 
 echo "==> running alembic migrations against the live database"
 # Migrations run inside the API container so they share the
