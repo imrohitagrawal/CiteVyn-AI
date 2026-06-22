@@ -61,7 +61,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # --config /db/alembic.ini ...`` from inside the running image.
 # The /db prefix keeps the migration tooling out of the app's
 # import path (alembic doesn't auto-discover the layout).
-COPY db /db
+COPY db /build/db
 
 # ─────────────────────────── Stage 2: runtime ──────────────────────────────
 FROM python:3.12-slim-bookworm AS runtime
