@@ -1,8 +1,8 @@
-# CiteVyn AI Architecture
+# CiteVyn Architecture
 
 ## 1. Architecture Goals
 
-CiteVyn AI is designed as a production-shaped MVP that can answer questions about official AI-tool documentation without becoming a generic hallucinating chatbot.
+CiteVyn is designed as a production-shaped MVP that can answer questions about official AI-tool documentation without becoming a generic hallucinating chatbot.
 
 Architecture goals:
 

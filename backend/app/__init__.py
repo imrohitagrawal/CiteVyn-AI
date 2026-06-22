@@ -1,1 +1,1 @@
-"""CiteVyn AI backend package."""
+"""CiteVyn backend package."""

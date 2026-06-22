@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Show the major deployable containers, data stores, external dependencies, and runtime boundaries for the CiteVyn AI MVP.
+Show the major deployable containers, data stores, external dependencies, and runtime boundaries for the CiteVyn MVP.
 
 ## Scope
 

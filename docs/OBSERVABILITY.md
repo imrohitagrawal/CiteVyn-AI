@@ -1,8 +1,8 @@
-# CiteVyn AI Observability
+# CiteVyn Observability
 
 ## 1. Purpose
 
-This document defines the observability model for CiteVyn AI.
+This document defines the observability model for CiteVyn.
 
 Observability must answer:
 

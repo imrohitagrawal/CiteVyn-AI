@@ -5,7 +5,7 @@
 > doesn't work, escalate — do not improvise.
 
 All commands assume you are on the production host with the repo
-checked out at `~/CiteVyn-AI/`. Adjust paths if your layout
+checked out at `~/citevyn/`. Adjust paths if your layout
 differs.
 
 ---

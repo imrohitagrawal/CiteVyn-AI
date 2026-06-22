@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Show how CiteVyn AI captures logs, metrics, traces, evaluation results, dashboards, and alerts.
+Show how CiteVyn captures logs, metrics, traces, evaluation results, dashboards, and alerts.
 
 ## Scope
 

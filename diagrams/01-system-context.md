@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Show CiteVyn AI as a trusted AI-tool usage assistant in its external system context.
+Show CiteVyn as a trusted AI-tool usage assistant in its external system context.
 
 ## Scope
 
@@ -19,8 +19,8 @@ flowchart LR
     user[AI Tool User]
     admin[Demo Admin]
 
-    subgraph trusted["CiteVyn AI Trust Boundary"]
-        system[CiteVyn AI]
+    subgraph trusted["CiteVyn Trust Boundary"]
+        system[CiteVyn]
     end
 
     subgraph sources["Official Documentation Sources"]
@@ -60,7 +60,7 @@ flowchart LR
 
 ## Short Explanation
 
-CiteVyn AI accepts user questions and admin operations inside a controlled trust boundary. It only ingests approved official documentation sources and uses external model services for embeddings and grounded answer generation. Observability and evaluation are first-class external operational dependencies.
+CiteVyn accepts user questions and admin operations inside a controlled trust boundary. It only ingests approved official documentation sources and uses external model services for embeddings and grounded answer generation. Observability and evaluation are first-class external operational dependencies.
 
 ## Key Assumptions
 

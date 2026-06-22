@@ -1,4 +1,4 @@
-# CiteVyn AI — repo-root developer + operator entry points.
+# CiteVyn — repo-root developer + operator entry points.
 #
 # Developer workflow:
 #   make demo        — bring up the local stack (db + migrations + seed)

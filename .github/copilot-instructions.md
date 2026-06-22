@@ -1,4 +1,4 @@
-# CiteVyn-AI Copilot Instructions
+# citevyn Copilot Instructions
 
 Engineering skills and best practices for AI-assisted development.
 

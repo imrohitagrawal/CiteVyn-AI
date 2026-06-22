@@ -1724,7 +1724,7 @@ Create `CHANGELOG.md` at repo root:
 ```markdown
 # Changelog
 
-All notable changes to CiteVyn AI will be documented in this file.
+All notable changes to CiteVyn will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -1758,7 +1758,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Slice 9: rate limit, infra, docs, release pipeline (PR #11).
 - Slice 9.1: rate-limit fail-closed, Redis pool close, conftest reset, hardcoded compose password removed, `get_current_request_id` returns `str`.
 
-[0.9.0]: https://github.com/imrohitagrawal/CiteVyn-AI/compare/v0.0.0...v0.9.0
+[0.9.0]: https://github.com/imrohitagrawal/citevyn/compare/v0.0.0...v0.9.0
 ```
 
 - [ ] **Step 2: Commit CHANGELOG**

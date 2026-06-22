@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     )
 
     # --- Application / transport ---
-    app_name: str = "CiteVyn AI Backend"
+    app_name: str = "CiteVyn Backend"
     environment: str = "local"
     demo_api_key: str = Field(default="local-demo-key", min_length=1)
     request_id_header: str = "X-Request-ID"

@@ -1,8 +1,8 @@
-# CiteVyn AI Data Model
+# CiteVyn Data Model
 
 ## 1. Purpose
 
-This document defines the MVP data model for CiteVyn AI.
+This document defines the MVP data model for CiteVyn.
 
 The model supports:
 

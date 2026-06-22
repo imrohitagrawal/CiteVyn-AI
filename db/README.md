@@ -1,7 +1,7 @@
-# CiteVyn AI — Database
+# CiteVyn — Database
 
 This directory holds Alembic migrations, seed scripts, and the
-canonical schema for CiteVyn AI.
+canonical schema for CiteVyn.
 
 ## Layout
 

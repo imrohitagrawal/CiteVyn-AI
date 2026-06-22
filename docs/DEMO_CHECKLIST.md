@@ -1,4 +1,4 @@
-# Demo Readiness Checklist — CiteVyn AI
+# Demo Readiness Checklist — CiteVyn
 
 This checklist is the **single source of truth** for what the demo
 must demonstrate and the gate the team uses to decide the build is

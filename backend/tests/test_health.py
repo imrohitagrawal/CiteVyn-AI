@@ -12,7 +12,7 @@ def test_health_returns_status_and_request_id(client: TestClient) -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "healthy"
-    assert body["service"] == "citevyn-ai-backend"
+    assert body["service"] == "citevyn-backend"
     assert body["request_id"].startswith("req_")
 
 

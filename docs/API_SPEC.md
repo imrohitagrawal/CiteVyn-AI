@@ -1,8 +1,8 @@
-# CiteVyn AI API Specification
+# CiteVyn API Specification
 
 ## 1. Purpose
 
-This document defines the MVP API surface for CiteVyn AI.
+This document defines the MVP API surface for CiteVyn.
 
 The API supports:
 

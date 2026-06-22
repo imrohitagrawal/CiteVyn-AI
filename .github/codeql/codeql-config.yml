@@ -1,4 +1,4 @@
-# CodeQL configuration for CiteVyn AI.
+# CodeQL configuration for CiteVyn.
 #
 # This config is referenced by .github/workflows/codeql.yml via the
 # `config-file` input on github/codeql-action/init. It excludes one
@@ -14,7 +14,7 @@
 # is a pragmatic choice for a small backend, not a license to log
 # secrets.
 
-name: "CiteVyn AI CodeQL config"
+name: "CiteVyn CodeQL config"
 
 query-filters:
   - exclude:

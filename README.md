@@ -1,4 +1,4 @@
-# CiteVyn AI
+# CiteVyn
 
 > **Citation-grounded Q&A** about Claude, Claude Code, Codex, and Gemini
 > — built on FastAPI + Postgres + pgvector, deployed via Docker.
@@ -76,8 +76,8 @@ demonstrably reproducible.
 
 ```bash
 # 1. Clone
-git clone https://github.com/imrohitagrawal/CiteVyn-AI.git
-cd CiteVyn-AI
+git clone https://github.com/imrohitagrawal/citevyn.git
+cd citevyn
 
 # 2. Install uv (one-time)
 curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -178,7 +178,7 @@ This slice adds [`docs/ADR/0002-deployment.md`](docs/ADR/0002-deployment.md).
 ## 6. Repository layout
 
 ```
-CiteVyn-AI/
+citevyn/
 ├── backend/                # Python service (FastAPI + worker)
 │   ├── app/                # Runtime code
 │   │   ├── api/            # HTTP routes

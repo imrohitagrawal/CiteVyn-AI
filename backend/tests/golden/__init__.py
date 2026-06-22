@@ -1,4 +1,4 @@
-"""Golden regression runner for CiteVyn AI (Slice 10).
+"""Golden regression runner for CiteVyn (Slice 10).
 
 This package executes every YAML case under
 ``tests/golden/cases/`` against a live ``TestClient`` (in-memory

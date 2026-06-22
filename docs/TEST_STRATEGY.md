@@ -1,8 +1,8 @@
-# CiteVyn AI Test Strategy
+# CiteVyn Test Strategy
 
 ## 1. Purpose
 
-This document defines the MVP testing strategy for CiteVyn AI.
+This document defines the MVP testing strategy for CiteVyn.
 
 The system is not considered ready because the API works. It is ready only when retrieval, citations, no-answer behavior, and guardrails pass measurable gates.
 

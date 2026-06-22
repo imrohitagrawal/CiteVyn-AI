@@ -1,6 +1,6 @@
 # Scripts
 
-Utility scripts for CiteVyn AI development and setup.
+Utility scripts for CiteVyn development and setup.
 
 ## `install-skills.sh`
 

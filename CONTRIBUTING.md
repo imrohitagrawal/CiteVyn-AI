@@ -27,8 +27,8 @@ spirit. Disagreements are fine; personal attacks are not.
 ### 2. Local setup
 
 ```bash
-git clone https://github.com/imrohitagrawal/CiteVyn-AI.git
-cd CiteVyn-AI
+git clone https://github.com/imrohitagrawal/citevyn.git
+cd citevyn
 make demo                      # brings up db + redis, runs migrations, seeds
 cd backend && uv sync          # resolves the python environment
 make verify                    # runs lint + typecheck + test

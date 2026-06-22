@@ -2,7 +2,7 @@
 
 ## Overview
 
-CiteVyn AI integrates 85 curated skills across three domains to enhance GitHub Copilot Chat workflows. Rather than committing third-party skills to this repository, we reference them from their upstream sources for easy maintenance and updates.
+CiteVyn integrates 85 curated skills across three domains to enhance GitHub Copilot Chat workflows. Rather than committing third-party skills to this repository, we reference them from their upstream sources for easy maintenance and updates.
 
 ## Installed Skills
 
@@ -143,7 +143,7 @@ See `SKILL_CONFLICT_ANALYSIS.md` for full details.
 /market-scan Analyze market for AI-powered documentation tools
 
 # Strategy planning
-/strategy Define go-to-market strategy for CiteVyn AI
+/strategy Define go-to-market strategy for CiteVyn
 
 # Launch planning
 /plan-launch Create launch checklist for Slice 1 release
@@ -155,7 +155,7 @@ See `SKILL_CONFLICT_ANALYSIS.md` for full details.
 /design-system Generate design system for citation interface
 
 # Branding
-/brand Define brand guidelines for CiteVyn AI
+/brand Define brand guidelines for CiteVyn
 
 # Components
 @web-performance-auditor Analyze design impact on Core Web Vitals

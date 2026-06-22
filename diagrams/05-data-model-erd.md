@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Show the primary database entities and relationships for CiteVyn AI MVP.
+Show the primary database entities and relationships for CiteVyn MVP.
 
 ## Scope
 

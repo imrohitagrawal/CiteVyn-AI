@@ -1,4 +1,4 @@
-"""ORM models for CiteVyn AI Slice 2.
+"""ORM models for CiteVyn Slice 2.
 
 Importing this package registers every model with ``Base.metadata``,
 which Alembic consults to autogenerate migrations.

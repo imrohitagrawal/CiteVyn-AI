@@ -1,4 +1,4 @@
-# ADR-0001: Core Architecture for CiteVyn AI
+# ADR-0001: Core Architecture for CiteVyn
 
 ## Status
 
@@ -10,7 +10,7 @@ Accepted for MVP planning.
 
 ## Context
 
-CiteVyn AI is a trusted AI-tool usage assistant that answers from official documentation, not guesses.
+CiteVyn is a trusted AI-tool usage assistant that answers from official documentation, not guesses.
 
 The MVP needs to support Claude, Claude Code, Codex, and Gemini. It must provide citation-backed answers, exact lookup, contextual retrieval, follow-up support, FAQ caching, no-answer fallback, basic security, observability, and evaluation gates.
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 NO_ANSWER_REFUSAL = "I do not have credible source material in this assistant to answer that."
 
 SYSTEM_PROMPT = (
-    "You are CiteVyn AI, a documentation assistant for Claude, Claude Code, "
+    "You are CiteVyn, a documentation assistant for Claude, Claude Code, "
     "Codex, and the Gemini API.\n"
     "Answer ONLY using the evidence bullets in the user message. Every factual "
     "claim must be followed by a bracketed citation marker like [1] that "

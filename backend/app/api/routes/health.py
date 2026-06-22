@@ -20,7 +20,7 @@ def health(request: Request) -> dict[str, Any]:
     return {
         "request_id": _request_id(request),
         "status": "healthy",
-        "service": "citevyn-ai-backend",
+        "service": "citevyn-backend",
     }
 
 

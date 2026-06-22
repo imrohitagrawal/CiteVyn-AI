@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Refresh the CiteVyn AI source catalog from upstream feeds.
+# Refresh the CiteVyn source catalog from upstream feeds.
 #
 # Pulls the latest snapshot URLs from the configured upstream sources
 # (e.g. Anthropic docs RSS, OpenAI docs sitemap, MCP server registry),

@@ -1,8 +1,8 @@
-# CiteVyn AI Security Model
+# CiteVyn Security Model
 
 ## 1. Purpose
 
-This document defines the MVP security model and enterprise security roadmap for CiteVyn AI.
+This document defines the MVP security model and enterprise security roadmap for CiteVyn.
 
 The MVP uses public official documentation only, but it should still demonstrate security discipline.
 

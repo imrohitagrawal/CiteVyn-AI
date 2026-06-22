@@ -1,4 +1,4 @@
-# CI for CiteVyn AI. The default `test` job runs the hermetic
+# CI for CiteVyn. The default `test` job runs the hermetic
 # in-memory SQLite suite plus the static checks documented in
 # backend/README.md.
 #

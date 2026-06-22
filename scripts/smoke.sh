@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end smoke test for the CiteVyn AI backend.
+# End-to-end smoke test for the CiteVyn backend.
 #
 # Brings up Postgres via docker compose, applies migrations, seeds
 # users + the demo catalog, starts uvicorn in the background, posts a

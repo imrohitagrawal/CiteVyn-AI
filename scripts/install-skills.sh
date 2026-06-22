@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ##############################################################################
-# CiteVyn AI: Automated Skills Installation Script
+# CiteVyn: Automated Skills Installation Script
 # 
 # Installs 85 AI skills across 3 domains:
 # - Engineering skills (10)
@@ -59,7 +59,7 @@ print_error() {
 # Main Installation
 ##############################################################################
 
-print_header "CiteVyn AI: Copilot Skills Installation"
+print_header "CiteVyn: Copilot Skills Installation"
 
 # Step 1: Verify project structure
 print_step "Verifying project structure..."

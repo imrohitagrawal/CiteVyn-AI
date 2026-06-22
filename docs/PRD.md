@@ -1,16 +1,16 @@
-# CiteVyn AI Product Requirements Document
+# CiteVyn Product Requirements Document
 
 ## 1. Product Name
 
-**CiteVyn AI**
+**CiteVyn**
 
 ## 2. Product Statement
 
-**CiteVyn AI is a trusted AI-tool usage assistant that answers from official documentation, not guesses.**
+**CiteVyn is a trusted AI-tool usage assistant that answers from official documentation, not guesses.**
 
 ## 3. MVP Positioning
 
-CiteVyn AI MVP provides reliable, citation-backed answers for users of:
+CiteVyn MVP provides reliable, citation-backed answers for users of:
 
 - Claude
 - Claude Code
@@ -29,7 +29,7 @@ AI-tool users increasingly rely on tools such as Claude, Claude Code, Codex, and
 - What does an error or configuration option mean?
 - Can I trust the answer?
 
-A generic chatbot may answer confidently without reliable source evidence. CiteVyn AI solves this by answering only from indexed official documentation and returning citations.
+A generic chatbot may answer confidently without reliable source evidence. CiteVyn solves this by answering only from indexed official documentation and returning citations.
 
 ## 5. Target Users
 

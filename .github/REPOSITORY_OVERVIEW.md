@@ -1,14 +1,14 @@
-# CiteVyn AI Repository Overview
+# CiteVyn Repository Overview
 
 ## 📋 Project Summary
 
-**CiteVyn AI** is a **trusted AI-tool usage assistant** that answers questions exclusively from official documentation with citations.
+**CiteVyn** is a **trusted AI-tool usage assistant** that answers questions exclusively from official documentation with citations.
 
 ### Problem Statement
 Users of Claude, Claude Code, Codex, and Gemini need reliable answers about tool configuration, commands, flags, and workflows. Official documentation is fragmented across vendors. Generic chatbots answer confidently without evidence and hallucinate.
 
 ### Solution
-CiteVyn AI ingests **only official documentation**, retrieves relevant sources, generates short answers, and returns citations. No hallucinations.
+CiteVyn ingests **only official documentation**, retrieves relevant sources, generates short answers, and returns citations. No hallucinations.
 
 ### Target MVP Users
 - Developers using Claude Code, Codex, or Gemini
@@ -43,7 +43,7 @@ CiteVyn AI ingests **only official documentation**, retrieves relevant sources, 
 ## 📁 Repository Structure
 
 ```
-citevyn-ai/
+citevyn/
 ├── backend/                     # FastAPI service (Python)
 │   ├── app/
 │   │   ├── main.py             # App factory, router setup

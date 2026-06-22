@@ -1,8 +1,8 @@
-# CiteVyn AI Release Plan
+# CiteVyn Release Plan
 
 ## 1. Purpose
 
-This document defines the release plan for CiteVyn AI MVP and the roadmap to enterprise readiness.
+This document defines the release plan for CiteVyn MVP and the roadmap to enterprise readiness.
 
 ## 2. Release Principles
 

@@ -1,4 +1,4 @@
-# CiteVyn AI Backend
+# CiteVyn Backend
 
 Slice 1 provides the minimal FastAPI foundation only:
 

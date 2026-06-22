@@ -1,4 +1,4 @@
-# Golden test cases for CiteVyn AI (slice-10 demo-readiness)
+# Golden test cases for CiteVyn (slice-10 demo-readiness)
 #
 # Conventions
 # -----------

@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to CiteVyn AI are documented in this file. The format
+All notable changes to CiteVyn are documented in this file. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -54,7 +54,7 @@ project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Fixed
 - Slice 9.1 follow-up: the `x-anthropic-billing-header` env var name
   was case-sensitive in code but lower-cased on Linux containers
-  (imrohitagrawal/citevyn-ai#11 follow-up, commit `4a01850`).
+  (imrohitagrawal/citevyn#11 follow-up, commit `4a01850`).
 
 ## [0.9.0] — 2026-04-30
 

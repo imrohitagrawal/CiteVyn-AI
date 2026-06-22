@@ -1,8 +1,8 @@
-# CiteVyn AI Diagrams
+# CiteVyn Diagrams
 
 ## 1. Purpose
 
-This folder contains the canonical architecture diagrams for CiteVyn AI.
+This folder contains the canonical architecture diagrams for CiteVyn.
 
 The diagrams are written as Markdown files with Mermaid blocks so they remain:
 

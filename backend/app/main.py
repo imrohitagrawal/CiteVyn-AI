@@ -78,7 +78,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="CiteVyn AI Backend",
+        title="CiteVyn Backend",
         version="0.9.0",
         description=(
             "Slice 9 backend: HTTP routes for sessions, messages, "
